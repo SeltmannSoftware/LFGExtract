@@ -1,6 +1,6 @@
 //
 //  explode.h
-//  LFGExtract V 1.0
+//  LFGExtract V 1.1
 //
 //  Created by Kevin Seltmann on 6/12/16.
 //  Copyright © 2016 Kevin Seltmann. All rights reserved.

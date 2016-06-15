@@ -1,6 +1,6 @@
 //
 //  main.c
-//  LFGExtract V 1.0
+//  LFGExtract V 1.1
 //
 //  Created by Kevin Seltmann on 6/11/16.
 //  Copyright © 2016 Kevin Seltmann. All rights reserved.
@@ -11,6 +11,11 @@
 #include <string.h>
 #include <stdbool.h>
 #include "explode.h"
+
+#include <sys/time.h>
+
+struct timeval stop, start;
+
 
 typedef struct
 {
@@ -160,8 +165,7 @@ FILE* new_file( void )
         return NULL;
     }
     
-    return archive_info.fp;
-    
+    return archive_info.fp;    
 }
 
 
@@ -337,8 +341,15 @@ int main (int argc, const char * argv[])
         
         if (!info_only)
         {
+            gettimeofday(&start, NULL);
+
             (void) extract_and_explode(archive_info.fp, file_info.filename,
                                        file_info.final_length, &new_file);
+
+            gettimeofday(&stop, NULL);
+            printf("took %d\n", stop.tv_usec - start.tv_usec);
+
+        
         }
         
         if( file_pos < archive_info.file_length )

@@ -1,6 +1,6 @@
 //
 //  explode.c
-//  LFGExtract V 1.0
+//  LFGExtract V 1.1
 //
 //  Created by Kevin Seltmann on 6/12/16.
 //  Copyright © 2016 Kevin Seltmann. All rights reserved.
@@ -72,8 +72,15 @@ unsigned int read_bit( void )
         {
             bitstream.in_pointer = bitstream.eof_reached();
             
-            // New file. Now try to get a byte.
-            ch = fgetc(bitstream.in_pointer);
+            if (bitstream.in_pointer)
+            {
+                // New file. Now try to get a byte.
+                ch = fgetc(bitstream.in_pointer);
+            } else {
+                
+                // No new file
+                bitstream.error_flag = true;
+            }
         }
         
         // Error if eof still occurs or a different error is reported.
@@ -294,34 +301,54 @@ int read_copy_offset( void )
     return offset;
 }
 
+// V 1.1.
+// Write to memory buffer rather than out at one char at a time.
+// Write out buffer every time the window fills or at file end.
+unsigned char write_buffer[0x8000];  // or malloc later
+unsigned int write_position;
 
-void write_dict_data( void )
+void write_to_file( void )
 {
-    int offset = 0 - (bitstream.offset+1);
-    int length = bitstream.length;
-    int ch;
-
-    // Do this length times. Offset does not change since one byte is
-    // added to file each iteration and we are counting from the end.
-    // Method is simpler than maintaining a separate copy in memory.
-    // (Although this would probably cause a lot of I/O thrashing on
-    // older OSes)
-    for (int i = 0; i < length; i++) {
-        
-        // Seek offset location and read
-        fseek(bitstream.out_pointer, offset, SEEK_END);
-        ch = fgetc(bitstream.out_pointer);
-        
-        // Seek end and write
-        fseek(bitstream.out_pointer, 0, SEEK_END);
-        fputc(ch, bitstream.out_pointer);
-        
-        // Update number of bytes written
-        bitstream.bytes_written++;
+    fwrite(write_buffer, sizeof(write_buffer[0]), write_position,
+           bitstream.out_pointer);
+    
+    if (ferror(bitstream.out_pointer))
+    {
+        bitstream.error_flag = true;
     }
+    
+    bitstream.bytes_written += write_position;
+}
+
+void write_byte( unsigned char next_byte )
+{
+    write_buffer[write_position++] = next_byte;
+    
+    if (write_position == 0x8000)
+    {
+        write_to_file();
+    }
+
+    write_position%=0x8000;
     
 }
 
+unsigned char read_byte( int offset )
+{
+    return write_buffer[(write_position-offset) % 0x8000];
+}
+
+void write_dict_data( void )
+{
+    int offset = bitstream.offset+1;   // +1 since zero should reference the
+                                       //    previous byte
+    
+    // Do this length times. Offset does not change since one byte is
+    // added each iteration and we are counting from the end.
+    for (int i = 0; i < bitstream.length; i++) {
+        write_byte( read_byte(offset) );
+    }
+}
 
 int extract_and_explode( FILE * in_fp,
                          char* out_filename,
@@ -364,14 +391,16 @@ int extract_and_explode( FILE * in_fp,
         return -1;
     }
     
+    write_position = 0;
+    
     // Read until EOF marking is hit.
     do {
         // Next bits indicates a literal or dictionary lookup.
         if (read_bit() == 0)
         {
             // Literal
-            fputc( read_bits_lsb_first(8), bitstream.out_pointer );
-            bitstream.bytes_written++;
+            write_byte(read_bits_lsb_first(8));
+
         }
         else
         {
@@ -393,6 +422,8 @@ int extract_and_explode( FILE * in_fp,
             }
         }
     } while ( !bitstream.end_marker && !bitstream.error_flag );
+    
+    write_to_file();
     
     fclose(bitstream.out_pointer);
     
