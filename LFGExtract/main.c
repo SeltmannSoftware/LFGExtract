@@ -6,16 +6,24 @@
 //  Copyright © 2016 Kevin Seltmann. All rights reserved.
 //
 
+// TODO:
+// option to provide list of files if they don't follow ___a.xxx convention
+// verbose option?
+// dictionary / window size, etc.
+//
+// write compresser!!!
+// and reduce on install file!!! :)
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include "explode.h"
 
-#include <sys/time.h>
+//#include <sys/time.h>
 
-struct timeval stop, start;
-
+//struct timeval stop, start;
 
 typedef struct
 {
@@ -50,7 +58,7 @@ struct
     char cur_filename[256];
 } disk_info = {0};
 
-
+// get lengh of input file
 void get_file_length( FILE * fp_in )
 {
     // Find file length
@@ -168,6 +176,21 @@ FILE* new_file( void )
     return archive_info.fp;    
 }
 
+void print_usage ( void )
+{
+    printf("Usage: LFGExtract [-i] archive_name\n");
+    printf("Extracts files from LFG archives used in older LucasArts games (.xxx extension).\n\n");
+    printf("   -i    Show archive info only (do not extract)\n");
+    printf("   -v    Print version info\n\n");
+    
+}
+
+void print_version ( void )
+{
+    printf("LFGExtract V1.1\n");
+    printf("by Kevin Seltmann, 2016\n\n");
+}
+
 
 int main (int argc, const char * argv[])
 {
@@ -178,26 +201,29 @@ int main (int argc, const char * argv[])
     char temp_buff[6];
     bool info_only = false;
     int file_arg = 1;
-    
+    int temp_length = 0;
     const char exp_buff[6] = {2,0,1,0,0,0};
-   
-    if (argc <= 1) {
-        printf("Usage: LFGExtract [-i] filename\n\n");
-        return 0;
-    }
     
-    if (argc == 3) {
-        if (strcmp(argv[1], "-i") == 0) {
+    for (int j = 1; j<argc; j++)
+    {
+        if (strcmp(argv[j], "-i") == 0) {
             info_only = true;
             file_arg++;
         }
-        else
-        {
-            printf("Usage: LFGExtract [-i] filename\n\n");
+        else if (strcmp(argv[j], "-v") == 0) {
+            print_version();
             return 0;
+        } else
+        {
+            file_arg = j;
         }
     }
 
+    if (file_arg >= argc) {
+        print_usage();
+        return 0;
+    }
+    
     strcpy(disk_info.cur_filename, argv[file_arg]);  // check max, remove path
 
     if (!open_archive(&fp)) {
@@ -260,13 +286,19 @@ int main (int argc, const char * argv[])
     printf( "Space needed: \t\t%u bytes\n", archive_info.space_needed );
 
     printf( "\n" );
+    if (!info_only)
+        printf( "Extracting files:\n" );
+    else
+        printf( "Archived file info:\n" );
+    printf( "Filename           Imploded Size         Exploded Size       Ratio\n" );
+    printf( "--------------------------------------------------------------------\n" );
     
-    printf( "Archived files:\n" );
-    printf( "Filename            Size (bytes)            Compressed Size (bytes)  \n" );
-    printf( "---------------------------------------------------------------------\n" );
-    
-    printf("%s\t   %7ld bytes\n", disk_info.cur_filename,
-           archive_info.file_length);
+    if (verbose)
+    {
+      printf("%s\t   %7ld bytes\n", disk_info.cur_filename,
+             archive_info.file_length);
+   
+    }
     
     while (isNotEnd && isFileNext(archive_info.fp))
     {
@@ -314,19 +346,23 @@ int main (int argc, const char * argv[])
         }
         
         if (memcmp(temp_buff, exp_buff, 6) != 0)  {
-            printf("Warning: Unexpected values in header. File may be corrupted.\n");
+            printf("Warning: Unexpected values in header. "
+                   "File may be corrupted.\n");
         }
 
         file_pos += file_info.length;
         if ( file_pos <= archive_info.file_length) {
             printf( "  %-12s\t   %7d bytes",  file_info.filename,
-                   file_info.final_length);
-            printf( "           %7d bytes\n", file_info.length);
+                   file_info.length);
+            printf( "         %7d bytes", file_info.final_length);
+            printf("        %3d\%% \n",
+                   (file_info.length * 100) / file_info.final_length);
             disk_info.file_count++;
         } else {
-            printf( "  %-12s\t         ? bytes", file_info.filename );
-            printf( "           %7ld bytes\n", file_info.length
-                   - (file_pos - archive_info.file_length));
+            printf( "  %-12s\t    (incomplete)\n", file_info.filename);
+//          printf( "  %-12s\t    %7ld bytes", file_info.filename,
+//                file_info.length - (file_pos - archive_info.file_length));
+            temp_length = file_info.length;
             file_info.length = (uint32_t)(file_pos - archive_info.file_length);
         }
         
@@ -341,21 +377,24 @@ int main (int argc, const char * argv[])
         
         if (!info_only)
         {
-            gettimeofday(&start, NULL);
+            //gettimeofday(&start, NULL);
 
             (void) extract_and_explode(archive_info.fp, file_info.filename,
                                        file_info.final_length, &new_file);
 
-            gettimeofday(&stop, NULL);
-            printf("took %d\n", stop.tv_usec - start.tv_usec);
-
-        
+            //gettimeofday(&stop, NULL);
+            //if (verbose) {
+            // printf("  Explode took %u uS.\n",
+            //(unsigned int)(stop.tv_usec - start.tv_usec));
+            // printf("  Explode took %ld uS.\n", stop.tv_sec - start.tv_sec);
+            //
+            // }
         }
         
         if( file_pos < archive_info.file_length )
         {
             fseek(archive_info.fp, file_pos, SEEK_SET);
-        } else if ( info_only && archive_info.num_disks)
+        } else if (info_only && archive_info.num_disks)
         {
             (void)new_file();
         }
@@ -371,8 +410,11 @@ int main (int argc, const char * argv[])
             
             if( 8+file_info.length <= archive_info.file_length ) {
                 printf( "  %-12s\t   %7d bytes",  file_info.filename,
-                       file_info.final_length);
-                printf( "           %7d bytes\n", file_info.length);
+                    temp_length);
+                printf( "         %7d bytes", file_info.final_length);
+                printf("        %3d\%% \n",
+                       (temp_length * 100) / file_info.final_length);
+                
                 fseek(archive_info.fp, 8+file_info.length, SEEK_SET);
             } else {
                 isNotEnd = false;
@@ -380,8 +422,10 @@ int main (int argc, const char * argv[])
         }
     }
     
-    printf(" -------------------------------------------------------------------\n" );
-    printf("  %d files\t   %7d bytes\n", disk_info.file_count,
+    printf(" --------------------------------"
+           "-----------------------------------\n" );
+    printf("  %3d files                              %7d bytes\n",
+           disk_info.file_count,
            disk_info.bytes_written_so_far );
     
     if( file_pos < archive_info.file_length ) {
