@@ -11,7 +11,6 @@
 // verbose option?
 // dictionary / window size, etc.
 //
-// write compresser!!!
 // and reduce on install file!!! :)
 
 
@@ -290,8 +289,8 @@ int main (int argc, const char * argv[])
         printf( "Extracting files:\n" );
     else
         printf( "Archived file info:\n" );
-    printf( "Filename           Imploded Size         Exploded Size       Ratio\n" );
-    printf( "--------------------------------------------------------------------\n" );
+    printf( "Filename           Archived Size        Exploded Size        Ratio\n" );
+    printf( "-------------------------------------------------------------------\n" );
     
     if (verbose)
     {
@@ -354,9 +353,9 @@ int main (int argc, const char * argv[])
         if ( file_pos <= archive_info.file_length) {
             printf( "  %-12s\t   %7d bytes",  file_info.filename,
                    file_info.length);
-            printf( "         %7d bytes", file_info.final_length);
-            printf("        %3d\%% \n",
-                   (file_info.length * 100) / file_info.final_length);
+            printf( "        %7d bytes", file_info.final_length);
+            printf("      %6.2f\%% \n",
+                   (float)(file_info.length * 100) / file_info.final_length);
             disk_info.file_count++;
         } else {
             printf( "  %-12s\t    (incomplete)\n", file_info.filename);
@@ -411,9 +410,9 @@ int main (int argc, const char * argv[])
             if( 8+file_info.length <= archive_info.file_length ) {
                 printf( "  %-12s\t   %7d bytes",  file_info.filename,
                     temp_length);
-                printf( "         %7d bytes", file_info.final_length);
-                printf("        %3d\%% \n",
-                       (temp_length * 100) / file_info.final_length);
+                printf( "        %7d bytes", file_info.final_length);
+                printf("      %6.2f\%% \n",
+                       (float)(temp_length * 100) / file_info.final_length);
                 
                 fseek(archive_info.fp, 8+file_info.length, SEEK_SET);
             } else {
@@ -423,8 +422,8 @@ int main (int argc, const char * argv[])
     }
     
     printf(" --------------------------------"
-           "-----------------------------------\n" );
-    printf("  %3d files                              %7d bytes\n",
+           "----------------------------------\n" );
+    printf("  %3d files                             %7d bytes\n",
            disk_info.file_count,
            disk_info.bytes_written_so_far );
     

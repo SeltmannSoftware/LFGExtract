@@ -8,9 +8,7 @@
 //  Designed to extract the archiving used on LucasArts Classic Adventure
 //  install files (*.XXX) and possibly other archives created with the PKWARE
 //  Data Compression Library from ~1990.  Implementation based on
-//  specification found on the internet
-//  Tested on all LucasArts Classic Adventure games and produces indentical
-//  output.
+//  specifications found on the internet at ...
 
 #include <stdbool.h>
 #include <string.h>
@@ -38,9 +36,23 @@ typedef struct {
     // Signals a read error
     int error_flag;
     
+    unsigned int bitcount;
+    
+    unsigned long total_bits;
+    
 } read_bitstream_type;
 
 read_bitstream_type read_bitstream;
+
+unsigned int read_bitcount( void )
+{
+    unsigned int bitcount = read_bitstream.bitcount;
+    
+    read_bitstream.bitcount = 0;
+    
+    return bitcount;
+
+}
 
 
 // Read bit from bitstream byte.
@@ -83,6 +95,9 @@ unsigned int read_next_bit( void )
     
     read_bitstream.current_bit_position++;
     read_bitstream.current_bit_position%=8;
+    
+    read_bitstream.bitcount++;
+    read_bitstream.total_bits++;
     
     return (unsigned int) value;
 }
@@ -196,6 +211,18 @@ struct {
     
     // Flags when the end of file marker is read (when length = 519)
     bool end_marker;
+    
+    // stats
+    unsigned int literal_count;
+    unsigned int dictionary_count;
+    int max_offset;
+    int min_offset;
+    int max_length;
+    int min_length;
+    
+    //debug
+    int length_bitcount;
+    int offset_bitcount;
     
 } explode;
 
@@ -352,6 +379,8 @@ int read_copy_offset( void )
     int num_lsbs;           // Number of lsbs to use.
     int length;
     
+    int bitcount;
+    
     // Get 6 MS bits of the resulting offset
     offset_bits = read_bits_msb_first(2);
     
@@ -370,6 +399,8 @@ int read_copy_offset( void )
     }
     
     if (length == 9) printf("Error: Copy offset value not found.\n");
+
+    bitcount+=length;
     
     // Now get low order bits and append. Length 2 is a special case.
     if (explode.length == 2)
@@ -379,6 +410,9 @@ int read_copy_offset( void )
     
     offset = (offset << num_lsbs) | read_bits_lsb_first(num_lsbs);
 
+    bitcount+=num_lsbs;
+    explode.offset_bitcount = bitcount;
+    
     return offset;
 }
 
@@ -405,6 +439,7 @@ int extract_and_explode( FILE * in_fp,
     read_bitstream.eof_reached = eof_reached;
     read_bitstream.current_bit_position = 0;
     read_bitstream.error_flag = 0;
+    read_bitstream.total_bits = 0;
 
     write_buffer.bytes_written = 0;
     write_buffer.error_flag = 0;
@@ -413,6 +448,15 @@ int extract_and_explode( FILE * in_fp,
     explode.end_marker = false;
     explode.length = 0;
     explode.offset = 0;
+    
+    // Statistics
+    explode.literal_count = 0;
+    explode.dictionary_count= 0;
+    explode.max_offset = 0;
+    explode.min_offset= 0x8000;
+    explode.max_length= 0;
+    explode.min_length = 0x8000;
+    
     
     // Read two header bytes.
     if ( fread( (uint8_t*) &header, sizeof (uint8_t), 2, in_fp ) != 2 ) {
@@ -446,14 +490,27 @@ int extract_and_explode( FILE * in_fp,
         // Next bits indicates a literal or dictionary lookup.
         if (read_next_bit() == 0)
         {
+            unsigned char value;
+            
+            value = read_bits_lsb_first(8);
+            write_byte( value );
+            
             // Literal
-            write_byte(read_bits_lsb_first(8));
+            //write_byte(read_bits_lsb_first(8));
+            explode.literal_count++;
+            
+            //printf("[%d] ", value);
 
         }
         else
         {
+            int bitcount_a = read_bitcount();
+            int bitcount_b;
+            
             // Dictionary look up.  Find length and offset.
             explode.length = read_copy_length();
+            
+            bitcount_a = read_bitcount();
             
             // Length of 519 indicates end of file.
             if (explode.length == 519)
@@ -467,6 +524,19 @@ int extract_and_explode( FILE * in_fp,
                
                 // Use copy length and offset to copy data from dictionary.
                 write_dict_data();
+                explode.dictionary_count++;
+                if (explode.length > explode.max_length)
+                    explode.max_length = explode.length;
+                if (explode.length < explode.min_length)
+                    explode.min_length = explode.length;
+                if (explode.offset > explode.max_offset)
+                    explode.max_offset = explode.offset;
+                if (explode.offset < explode.min_offset)
+                    explode.min_offset = explode.offset;
+                
+                bitcount_b = read_bitcount();
+                //printf("\n(%d, %d) (bits: %d, %ld) ", explode.length, explode.offset, bitcount_a + bitcount_b +1, read_bitstream.total_bits);
+                
             }
         }
     } while ( !explode.end_marker &&
@@ -484,6 +554,11 @@ int extract_and_explode( FILE * in_fp,
                 "doesn't match expected value (%d).\n",
                 write_buffer.bytes_written, expected_length);
     }
+    
+    printf("Literals:%d Dict: %d  Max off %d Min off %d Max len %d  Min len %d\n",
+           explode.literal_count, explode.dictionary_count,
+           explode.max_offset, explode.min_offset, explode.max_length,
+           explode.min_length);
     
     return write_buffer.bytes_written;
 }
