@@ -163,7 +163,7 @@
 			isa = PBXProject;
 			attributes = {
 				LastUpgradeCheck = 0800;
-				ORGANIZATIONNAME = "Kevin Seltmann";
+				ORGANIZATIONNAME = "Seltmann Software";
 				TargetAttributes = {
 					0A7FEC221D0CB7EF0071F4A8 = {
 						CreatedOnToolsVersion = 7.3.1;
