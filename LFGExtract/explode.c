@@ -8,15 +8,13 @@
 //  Designed to extract the archiving used on LucasArts Classic Adventure
 //  install files (*.XXX) and possibly other archives created with the PKWARE
 //  Data Compression Library from ~1990.  Implementation based on
-//  specifications found on the internet at ...
+//  specifications found on the internet.
 
+#include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
-#include "explode.h"
 
-
-// BIT READ ROUTINES
-
+// -- BIT READ ROUTINES --
 typedef struct {
 
     // Input file pointer.
@@ -36,24 +34,25 @@ typedef struct {
     // Signals a read error
     int error_flag;
     
+    // Stats.  Used to track number of bits for a length/offset combo.
     unsigned int bitcount;
     
+    // Stats. Used to track total number of encoded bits read.
     unsigned long total_bits;
     
 } read_bitstream_type;
 
 read_bitstream_type read_bitstream;
 
+// Returns number of bits read, then resets count.
+// Used for statistics.
 unsigned int read_bitcount( void )
 {
     unsigned int bitcount = read_bitstream.bitcount;
-    
     read_bitstream.bitcount = 0;
-    
     return bitcount;
 
 }
-
 
 // Read bit from bitstream byte.
 unsigned int read_next_bit( void )
@@ -75,14 +74,14 @@ unsigned int read_next_bit( void )
                 // New file. Now try to get a byte.
                 ch = fgetc(read_bitstream.file_pointer);
             } else {
-                
                 // No new file
                 read_bitstream.error_flag = true;
             }
         }
         
         // Error if eof still occurs or a different error is reported.
-        if (ch < 0) {
+        if (ch < 0)
+        {
             printf("Error: Unexpected end of file or file error.\n");
             read_bitstream.error_flag = true;
         }
@@ -136,9 +135,9 @@ unsigned int read_bits_lsb_first( int bit_count )
 }
 
 
-// BYTE WRITE BUFFER ROUTINES
+// -- BYTE WRITE BUFFER ROUTINES --
 
-#define WRITE_BUFF_SIZE      0x4000
+#define WRITE_BUFF_SIZE      0x4000   // ( 16k)
 
 typedef struct {
 
@@ -161,7 +160,6 @@ typedef struct {
 } write_buffer_type;
 
 write_buffer_type write_buffer;
-
 
 // Writes output buffer to file
 void write_to_file( void )
@@ -199,7 +197,7 @@ unsigned char read_byte_from_write_buffer( int offset )
                                   % WRITE_BUFF_SIZE];
 }
 
-// EXPLODE IMPLEMENTATION
+// -- EXPLODE IMPLEMENTATION --
 
 struct {
     
@@ -212,17 +210,14 @@ struct {
     // Flags when the end of file marker is read (when length = 519)
     bool end_marker;
     
-    // stats
+    // Statistics
     unsigned int literal_count;
     unsigned int dictionary_count;
     int max_offset;
     int min_offset;
     int max_length;
     int min_length;
-    
-    //debug
-    int length_bitcount;
-    int offset_bitcount;
+    int length_histogram[520];
     
 } explode;
 
@@ -244,7 +239,8 @@ struct {
     
     // Base input bits for this number of bits.
     unsigned int base_bits;
-} offset_bits_to_value_table[9] =
+    
+} offset_bits_to_value_table[] =
 {
     { 0, 0x00, 0x00},
     { 0, 0x00, 0x00},
@@ -256,7 +252,6 @@ struct {
     {26, 0x2F, 0x08},
     {16, 0x3F, 0x00}
 };
-
 
 
 // Read copy length codes. A fairly brute force method as there is an odd
@@ -369,7 +364,6 @@ int read_copy_length( void )
     
 }
 
-
 // Read the offset part of a length/offset reference
 int read_copy_offset( void )
 {
@@ -377,9 +371,7 @@ int read_copy_offset( void )
     int offset_bits = 0;    // Input bits for offset.
     int diff;               // Difference used in calulating with table.
     int num_lsbs;           // Number of lsbs to use.
-    int length;
-    
-    int bitcount;
+    int length;             //
     
     // Get 6 MS bits of the resulting offset
     offset_bits = read_bits_msb_first(2);
@@ -390,7 +382,8 @@ int read_copy_offset( void )
         diff = offset_bits - offset_bits_to_value_table[length].base_bits;
         
         if ( ( diff >=0 ) &&
-            (diff < offset_bits_to_value_table[length].count) ) {
+            (diff < offset_bits_to_value_table[length].count) )
+        {
             offset = offset_bits_to_value_table[length].base_value - diff;
             break;
         }
@@ -400,8 +393,6 @@ int read_copy_offset( void )
     
     if (length == 9) printf("Error: Copy offset value not found.\n");
 
-    bitcount+=length;
-    
     // Now get low order bits and append. Length 2 is a special case.
     if (explode.length == 2)
         num_lsbs = 2;
@@ -409,18 +400,14 @@ int read_copy_offset( void )
         num_lsbs = header.dictionary_size;
     
     offset = (offset << num_lsbs) | read_bits_lsb_first(num_lsbs);
-
-    bitcount+=num_lsbs;
-    explode.offset_bitcount = bitcount;
     
     return offset;
 }
 
-
 void write_dict_data( void )
 {
     int offset = explode.offset+1;   // +1 since zero should reference the
-                                     //    previous byte
+                                     // previous byte.
     
     // Do this length times. Offset does not change since one byte is
     // added each iteration and we are counting from the end.
@@ -429,34 +416,46 @@ void write_dict_data( void )
     }
 }
 
-
+/* Extract a file from an archive file and explode it.
+   in_fp:           Pointer to imploded data start in archive file.
+   out_filename:    Output filename [consider making this fp_out].
+   expected_length: Expected length of file (0 if not provided).
+   eof_reached():   Callback that indicates archive EOF is reached.
+                    Callback should return new file pointer with 
+                    the continued data for the imploded file.
+ */
 int extract_and_explode( FILE * in_fp,
-                         char* out_filename,
+                         FILE* out_fp,
                          int expected_length,
+                         bool print_stats,
                          FILE* (*eof_reached)(void))
 {
+    // Set up read parameters. [Consider making this a function.]
     read_bitstream.file_pointer = in_fp;
     read_bitstream.eof_reached = eof_reached;
     read_bitstream.current_bit_position = 0;
     read_bitstream.error_flag = 0;
     read_bitstream.total_bits = 0;
 
+    // Reset write parameters. [ Consider making this a function. ]
     write_buffer.bytes_written = 0;
     write_buffer.error_flag = 0;
     write_buffer.buffer_position = 0;
+    write_buffer.file_pointer=out_fp;
     
+    // Reset counters/markers.
     explode.end_marker = false;
     explode.length = 0;
     explode.offset = 0;
     
-    // Statistics
+    // Initialize statistics.
     explode.literal_count = 0;
-    explode.dictionary_count= 0;
+    explode.dictionary_count = 0;
     explode.max_offset = 0;
-    explode.min_offset= 0x8000;
-    explode.max_length= 0;
+    explode.min_offset = 0x8000;
+    explode.max_length = 0;
     explode.min_length = 0x8000;
-    
+    memset(explode.length_histogram, 0, sizeof(explode.length_histogram));
     
     // Read two header bytes.
     if ( fread( (uint8_t*) &header, sizeof (uint8_t), 2, in_fp ) != 2 ) {
@@ -470,46 +469,41 @@ int extract_and_explode( FILE * in_fp,
         return -1;
     }
 
-    // Check dictionary size value.
+    // Check dictionary size value. Supports values of 4 through 6.
+    // Dictionary size is 1 << (6 + val) (or 2^(6+val) ): 1024, 2048, or 4096
     if ((header.dictionary_size < 4) || (header.dictionary_size > 6)) {
-        printf("Error: Bad dictionary size in header (%d).\n",
+        printf("Error: Bad dictionary size value (%d) in header.\n",
                header.dictionary_size);
         return -1;
     }
     
-    // Open the output file.
-    write_buffer.file_pointer=fopen(out_filename, "wb+");
-    
-    if (write_buffer.file_pointer == 0) {
-        printf("Error: Failure while opening file %s.\n", out_filename);
-        return -1;
-    }
-    
-    // Read until EOF marking is hit.
-    do {
-        // Next bits indicates a literal or dictionary lookup.
+    // Read until EOF is detected.
+    do
+    {
+        // Next bit indicates a literal or dictionary lookup.
         if (read_next_bit() == 0)
         {
+            // -- Literal --
             unsigned char value;
             
             value = read_bits_lsb_first(8);
             write_byte( value );
             
-            // Literal
-            //write_byte(read_bits_lsb_first(8));
+            // Stats update
             explode.literal_count++;
-            
-            //printf("[%d] ", value);
-
         }
         else
         {
+            // -- Dictionary Look Up --
+            // Reset internal bitcount. Keeps track of number of bits
+            // read for stats.
             int bitcount_a = read_bitcount();
             int bitcount_b;
             
             // Dictionary look up.  Find length and offset.
             explode.length = read_copy_length();
             
+            // Stats. Gives number of bits used for length.
             bitcount_a = read_bitcount();
             
             // Length of 519 indicates end of file.
@@ -517,14 +511,19 @@ int extract_and_explode( FILE * in_fp,
             {
                 explode.end_marker = true;
             }
-            else
+            else // otherwise,
             {
+                
                 // Find offset.
                 explode.offset = read_copy_offset();
                
                 // Use copy length and offset to copy data from dictionary.
                 write_dict_data();
+                
+                // Statistics update
                 explode.dictionary_count++;
+                explode.length_histogram[explode.length]++;
+                
                 if (explode.length > explode.max_length)
                     explode.max_length = explode.length;
                 if (explode.length < explode.min_length)
@@ -534,9 +533,12 @@ int extract_and_explode( FILE * in_fp,
                 if (explode.offset < explode.min_offset)
                     explode.min_offset = explode.offset;
                 
+                // More stats. Gives bits used for offset.
                 bitcount_b = read_bitcount();
-                //printf("\n(%d, %d) (bits: %d, %ld) ", explode.length, explode.offset, bitcount_a + bitcount_b +1, read_bitstream.total_bits);
                 
+                //printf("  %d bits encoded %d bits (%d bytes)\n",
+                //    bitcount_a + bitcount_b + 1,
+                //    explode.length * 8, explode.length);
             }
         }
     } while ( !explode.end_marker &&
@@ -544,21 +546,35 @@ int extract_and_explode( FILE * in_fp,
     
     write_to_file();
     
-    fclose(write_buffer.file_pointer);
-    
     // If expected length was passed in, check it.
     if ((expected_length) &&
         (write_buffer.bytes_written != expected_length))
     {
-        printf( "Warning: Bytes written (%d) "
+        printf( "Warning: Number of bytes written (%d) "
                 "doesn't match expected value (%d).\n",
                 write_buffer.bytes_written, expected_length);
     }
     
-    printf("Literals:%d Dict: %d  Max off %d Min off %d Max len %d  Min len %d\n",
-           explode.literal_count, explode.dictionary_count,
-           explode.max_offset, explode.min_offset, explode.max_length,
-           explode.min_length);
+    if (print_stats)
+    {
+        printf("    Literal Mode: %d  Literals: %d\n",
+               header.literal_mode, explode.literal_count);
+        printf("    Dictionary Size: %d  Dictionary Lookups: %d\n",
+               1 << (header.dictionary_size + 6), explode.dictionary_count);
+    
+        printf("    Min/Max: Offset [%d, %d], Length [%d, %d]\n",
+               explode.min_offset, explode.max_offset, explode.min_length,
+               explode.max_length);
+    }
+    
+// Length histogram. Interesting!
+//  for (int i=0; i<520; i++)
+//  {
+//      if (explode.length_histogram[i])
+//      {
+//          printf("    %d: %d\n", i, explode.length_histogram[i]);
+//      }
+//  }
     
     return write_buffer.bytes_written;
 }

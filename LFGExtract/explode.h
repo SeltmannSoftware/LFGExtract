@@ -17,9 +17,18 @@
 
 #include <stdio.h>
 
+/* Extract a file from an archive file and explode it.
+   in_fp:           Pointer to imploded data start in archive file.
+   out_filename:    Output filename [consider making this fp_out].
+   expected_length: Expected length of file (0 if not provided).
+   eof_reached():   Callback that indicates archive EOF is reached.
+                    Callback should return new file pointer with
+                    the continued data for the imploded file.
+*/
 int extract_and_explode( FILE* in_fp,
-                         char* out_filename,
-                         int expected_length,
-                         FILE* (*eof_reached)(void));
+                         FILE* out_fp,
+                         int   expected_length,
+                         bool print_stats,
+                         FILE* (*eof_reached)(void) );
 
 #endif /* explode_h */
