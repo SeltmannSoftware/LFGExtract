@@ -15,7 +15,7 @@ void print_usage ( void )
 {
     printf("Usage: LFGExtract [-i] [-s] archive_name(s)\n");
     printf("Extracts files from archives used in older "
-           "LucasArts games (.XXX extension).\n\n");
+           "LucasArts games.\n\n");
     printf("   -d    Display process details\n");
     printf("   -f    Force overwrite of existing files during extraction.\n");
     printf("   -i    Show archive info only (do not extract)\n");
@@ -32,7 +32,7 @@ void print_version ( void )
 
 int main (int argc, const char * argv[])
 {
-    int verbose = 1;
+    int verbose = 2;
     bool info_only = false;
     bool show_stats = false;
     bool overwrite = false;

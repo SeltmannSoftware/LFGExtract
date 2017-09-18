@@ -9,7 +9,7 @@
 //  install files (*.XXX) and possibly other archives created with the PKWARE
 //  Data Compression Library from ~1990.  Implementation for LFG file
 //  extraction reverse-engineered from existing .XXX files.  Implementation
-//  of explode algorigrm based on specifications found on the internet.
+//  of explode algorithm based on specifications found on the internet.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,7 +21,8 @@
 
 // ----
 
-// Check that first four bytes are 'LFG!'
+// Check that first four bytes of file are 'LFG!'
+// File pointer is set at 4 bytes from start of file.
 bool isFileLFG( FILE *fp_in ) {
     
     char header[4];
@@ -37,7 +38,8 @@ bool isFileLFG( FILE *fp_in ) {
     return false;
 }
 
-// Check that next four bytes are 'FILE'
+// Check that next four bytes of file are 'FILE'
+// File pointer is advanced 4 bytes
 bool isFileNext( FILE *fp_in ) {
     
     char buffer[4];
@@ -51,6 +53,8 @@ bool isFileNext( FILE *fp_in ) {
     return false;
 }
 
+// Read in the next four bytes. Treated as a value, stored with least
+// significant byte first.
 bool read_uint32( FILE *fp_in, uint32_t * result ) {
     unsigned char buffer[4];
     
@@ -62,6 +66,7 @@ bool read_uint32( FILE *fp_in, uint32_t * result ) {
     return false;
 }
 
+// Read a block of bytes into a buffer
 bool read_chunk( FILE *fp_in, char * buffer, int length ) {
     
     if ( fread( buffer, sizeof buffer[0], length, fp_in ) == length ) {
@@ -71,6 +76,7 @@ bool read_chunk( FILE *fp_in, char * buffer, int length ) {
     return false;
 }
 
+// Read one byte, return whether it is expected or not.
 bool read_expected_byte(FILE *fp_in,
                         char expectedByte)
 {
@@ -96,6 +102,7 @@ bool open_archive(FILE **fp,
     // Open for binary read
     fp_open=fopen(filename, "rb");
     
+    // Open failed...
     if (fp_open == 0) {
         //printf("Error opening file %s.\n\n", filename);
         return false;
@@ -104,6 +111,8 @@ bool open_archive(FILE **fp,
     // Find file length
     fseek ( fp_open, 0, SEEK_END );
     file_length = ftell( fp_open );
+    
+    // -- Read LFG Header --
     
     //Check first four bytes
     if (!isFileLFG(fp_open)) {
@@ -114,6 +123,7 @@ bool open_archive(FILE **fp,
         return false;
     }
     
+    // Read and check archive length
     if (!read_uint32(fp_open, &length)) {
         printf("%s does not appear to be a valid LFG archive.\n\n",
                filename);
@@ -121,6 +131,7 @@ bool open_archive(FILE **fp,
         return false;
     }
     
+    // Sanity check on length
     if (file_length != length + 8)
     {
         printf("Warning: Actual archive file length (%ld)\n         "
@@ -128,6 +139,7 @@ bool open_archive(FILE **fp,
                file_length, length);
     }
     
+    // Update length field, file length, and file pointer.
     *reported_length = length;
     *actual_length = file_length;
     *fp = fp_open;
@@ -135,6 +147,7 @@ bool open_archive(FILE **fp,
     return true;
 }
 
+// Prints filename, compressed length, uncompressed length, and ratio.
 void print_file_info ( char* filename, uint32_t length, uint32_t final_length )
 {
     printf("  %-12s\t   %7d bytes",  filename, length);
@@ -164,6 +177,7 @@ struct
     int bytes_read_so_far;          // not used
     
     FILE* fp;                       // File pointer to current archive file
+    long file_pos;
     
     char cur_filename[256];         // archive path & filename
     unsigned long filename_length;  // length of above
@@ -182,9 +196,21 @@ typedef struct
 
 file_info_type file_info = {0};
 
+// Used as a callback function.
+// Closes old file pointer, opens next file in archive.
+// First tries incrementing last letter in filename, ie
+// INDY___C.XXX -> INDY___D.XXX
+// If that fails, uses next filename in supplied list.
 FILE* new_file(void)
 {
     fclose(disk_info.fp);
+    
+    if (disk_info.file_pos >= archive_info.file_length)
+    {
+        disk_info.file_pos -= archive_info.file_length;
+        disk_info.file_pos += 8;
+        archive_info.num_disks--;
+    }
     
     // Probably should only do this if last chars are "XXX"
     disk_info.cur_filename[disk_info.filename_length-5]++;
@@ -363,6 +389,7 @@ int extract_archive(int file_max,
         file_error |= !read_uint32(disk_info.fp, &file_info.length);
         
         file_pos = ftell(disk_info.fp);
+        disk_info.file_pos = file_pos;
         
         // From here down....deal with eof?? (and call next_file()?
         
@@ -395,6 +422,7 @@ int extract_archive(int file_max,
                    "File may be corrupted.\n");
         }
         
+        disk_info.file_pos += file_info.length;
         file_pos += file_info.length;
         if ( file_pos <= archive_info.file_length)
         {
@@ -405,7 +433,7 @@ int extract_archive(int file_max,
             }
             
             disk_info.file_count++;
-            temp_length = file_info.length;
+            //temp_length = file_info.length;
         }
         else
         {
@@ -413,17 +441,21 @@ int extract_archive(int file_max,
                 printf( "  %-12s\t    (incomplete)\n", file_info.filename);
             //          printf( "  %-12s\t    %7ld bytes", file_info.filename,
             //                file_info.length - (file_pos - archive_info.file_length));
-            temp_length = (uint32_t)(file_pos - archive_info.file_length);
+            
+            //temp_length = (uint32_t)(file_pos - archive_info.file_length);  // test
         }
         
-        disk_info.bytes_read_so_far += temp_length;
+      //  disk_info.bytes_read_so_far += temp_length;
+        disk_info.bytes_read_so_far += file_info.length;
         disk_info.bytes_written_so_far  += file_info.final_length;
         
         if ( file_pos >= archive_info.file_length )
         {
             isNotEnd = false;
-            archive_info.num_disks--;
+           // archive_info.num_disks--;
         }
+        
+        printf("1. file pos %ld, file_length %ld\n", file_pos, archive_info.file_length);
         
         if (!info_only)
         {
@@ -482,9 +514,11 @@ int extract_archive(int file_max,
             
             start = clock();
             
-            (void) extract_and_explode(disk_info.fp, out_fp,
-                                       file_info.final_length,
-                                       show_stats, &new_file);
+            (void) extract_and_explode( disk_info.fp, out_fp,
+                                        file_info.final_length,
+                                        show_stats,
+                                        &new_file );
+            
             stop = clock();
             
             fclose(out_fp);
@@ -498,34 +532,40 @@ int extract_archive(int file_max,
             }
         }
         
-        if( file_pos < archive_info.file_length )
+        printf("2. file pos %ld, file_length %ld\n", file_pos, archive_info.file_length);
+        
+ //       if( file_pos < archive_info.file_length )
         {
-            fseek(disk_info.fp, file_pos, SEEK_SET);
         }
-        else if (info_only && archive_info.num_disks)
+        if (info_only && archive_info.num_disks && (file_pos >= archive_info.file_length ))
         {
             (void)new_file();
         }
+        fseek(disk_info.fp, disk_info.file_pos, SEEK_SET);
+        
+        printf("num_disks %d  isnotend %d\n", archive_info.num_disks, (int)isNotEnd);
         
         // check for error in new_file here.(below)
         if (archive_info.num_disks && !isNotEnd)
         {
             isNotEnd = true;
             
-            //if (verbose)
-            //    printf("\n%s\t   %7ld bytes\n", disk_info.file_name,
-            //           archive_info.file_length);
+            //
+            if (verbose)
+                printf("\n%s\t   %7ld bytes\n", disk_info.file_name,
+                       archive_info.file_length);
             
             disk_info.file_count++;
             
-            if( 8+temp_length <= archive_info.file_length )
+    //        if( 8+temp_length <= archive_info.file_length )
             {
-                fseek(disk_info.fp, 8+temp_length, SEEK_SET);
+    //            fseek(disk_info.fp, 8+temp_length, SEEK_SET);
             }
-            else
+    //        else
             {
-                isNotEnd = false;
+    //            isNotEnd = false;
             }
+
         }
     }
     

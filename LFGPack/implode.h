@@ -21,8 +21,7 @@ unsigned int implode( FILE * in_file,
                       FILE * out_file,
                       unsigned int length,
                       implode_dictionary_type dictionary_size,
-                      unsigned int initial_max_length,
-                      unsigned int next_max_length,
-                      FILE* (*max_reached)( FILE*) );
+                      unsigned int *max_length,
+                      FILE* (*max_reached)( FILE*, unsigned int* ) );
 
 #endif /* implode_h */

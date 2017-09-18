@@ -146,11 +146,17 @@ int main (int argc, const char * argv[])
         printf(" %d: %s\n", i, file_list_ptr[i]);
     }
     
-    lfg_pack(dictionary_size,
-             argv[file_arg],
-             file_list_ptr,
-             file_count);
+    //lfg_pack(dictionary_size,
+    //         argv[file_arg],
+    //         file_list_ptr,
+    //         file_count);
 
+    lfg_pack_disks(dictionary_size,
+            argv[file_arg],
+            file_list_ptr,
+            file_count, 640000, 640000);
+    
+    
     for (int i=0; i< file_count; i++)
     {
         free(file_list_ptr[i]);
@@ -160,12 +166,10 @@ int main (int argc, const char * argv[])
     /* verify by exploding what was just imploded
     fp_in=fopen(argv[file_arg], "rb");
     
-    
     extract_and_explode( fp_in,
                          temp,
                             0,
-                        NULL);
-    
+                        NULL);    
     
     fclose(fp_in);
     */

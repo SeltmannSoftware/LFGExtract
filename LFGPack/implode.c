@@ -398,14 +398,11 @@ unsigned int implode( FILE * in_file,
                       FILE * out_file,
                       unsigned int length,
                       implode_dictionary_type dictionary,
-                      unsigned int initial_max_length,
-                      unsigned int next_max_length,
-                      FILE* (*max_reached)( FILE*) )
+                      unsigned int *max_length,
+                      FILE* (*max_reached)( FILE* , unsigned int*) )
 {
     unsigned int encode_length = 0;
     long bytes_loaded;
-    
-    bool initial = true;
     
     encode_index = 0;
     bytes_encoded = 0;
@@ -442,16 +439,16 @@ unsigned int implode( FILE * in_file,
         unsigned int offset, offset_b;
         bool use_literal = true;
         
-        if ((initial && (bytes_written>initial_max_length)) ||
-             bytes_written>next_max_length)
+        if (bytes_written>*max_length)
         {
-            initial = false;
-            
-            printf(" Switch at %d for %d, %d\n", bytes_written, initial_max_length, next_max_length);
+            printf(" Switch at %d for %d\n", bytes_written, *max_length);
             
             if (max_reached)
             {
-                write_bitstream.file_pointer = max_reached( write_bitstream.file_pointer );
+                //write_bitstream.file_pointer = max_reached( write_bitstream.file_pointer );
+                write_bitstream.file_pointer = max_reached( write_bitstream.file_pointer, max_length );
+                out_file = write_bitstream.file_pointer;
+                *max_length+=bytes_written;
             }
         }
         
@@ -489,7 +486,7 @@ unsigned int implode( FILE * in_file,
             if (encode_length<2)
             printf("ENCODE LENGTH! %d\n", encode_length);
             
-            // Byt the time we are here, encode length must be >= 2
+            // By the time we are here, encode length must be >= 2
             // and encode_length + bytes already encoded should not
             // exceed the file length
  
@@ -576,11 +573,15 @@ unsigned int implode( FILE * in_file,
 
     }
     
+    printf("Bytes written %d, max length %d\n", bytes_written, *max_length);
+    
     // Write end-of-data marker (Length 519) and zero bits for final byte.
     write_next_bit(1);
     write_bits_msb_first( 7, 0);
     write_bits_lsb_first( 8, 0xFF);
     write_flush();
+    
+    *max_length-=bytes_written;
     
     return bytes_written;
 }
