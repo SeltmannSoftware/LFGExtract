@@ -141,8 +141,7 @@ void write_bits_lsb_first( unsigned int bit_count,
         {
             write_next_bit((bits >> i) & 1);
         }
-    }
-    
+    }    
 }
 
 void write_literal( unsigned int literal_val )
@@ -406,7 +405,7 @@ unsigned int implode( FILE * in_file,
     
     encode_index = 0;
     bytes_encoded = 0;
-    bytes_written = 2;  // account for header
+    bytes_written = 2;  // account for header  
     bytes_length = length;
     
     // range check dictionary

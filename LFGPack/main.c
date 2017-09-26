@@ -20,9 +20,10 @@ void print_usage ( void )
     printf("Creates an LFG-type archive.\n\n");
     printf("Options:\n");
     //printf("   -i    Show compression info only (do not create archive)\n");
-    printf("   -d N  Use dictionary size of N k (where N=1,2,4)\n");
-    printf("   -v    Print version info\n");
-    printf("   -h    Display this help\n\n");
+    printf("   -f filelist.txt  Use filelist.txt as archive file list\n");
+    printf("   -d N             Use dictionary size of N k (where N=1,2,4)\n");
+    printf("   -v               Print version info\n");
+    printf("   -h               Display this help\n\n");
 }
 
 void print_version ( void )
@@ -140,10 +141,10 @@ int main (int argc, const char * argv[])
         }
     }
     
-    printf("file count %d\n", file_count);
+    printf("Implode the following files:\n");
     for (int i = 0; i< file_count; i++)
     {
-        printf(" %d: %s\n", i, file_list_ptr[i]);
+        printf(" %d: %s\n", i+1, file_list_ptr[i]);
     }
     
     //lfg_pack(dictionary_size,
@@ -154,23 +155,21 @@ int main (int argc, const char * argv[])
     lfg_pack_disks(dictionary_size,
             argv[file_arg],
             file_list_ptr,
-            file_count, 640000, 640000);
+            file_count, 1228800, 1228800);
     
     
+    // Free file list
     for (int i=0; i< file_count; i++)
     {
         free(file_list_ptr[i]);
     }
- 
     
     /* verify by exploding what was just imploded
     fp_in=fopen(argv[file_arg], "rb");
-    
     extract_and_explode( fp_in,
                          temp,
                             0,
-                        NULL);    
-    
+                        NULL);
     fclose(fp_in);
     */
     

@@ -14,7 +14,6 @@
 #include "implode.h"
 #include "lfg_pack.h"
 
-
 typedef struct
 {
     long file_length;
@@ -116,8 +115,9 @@ FILE* max_reached (FILE* current_file, unsigned int * max_length )
 
     fp_out=current_file;
     
-    return current_file;
+    *max_length-=8; //ftell(fp_out);
     
+    return current_file;
 }
 
 
@@ -258,17 +258,12 @@ int lfg_pack(implode_dictionary_type dictionary_size,
     }
     
     printf("Total files: %d\n", file_count);
-    
-    printf("Length loc: %ld\n", length_location);
 
     // Calculate archive length and fill in
     archive_length = (unsigned int)(ftell(fp_out) - 8);
     fseek(fp_out, length_location, SEEK_SET);
     write_le_word(archive_length, fp_out);
 
-    printf("Length loc: %ld\n", length_location);
-
-    
     // Fill in the overall bytes needed
     fseek(fp_out, space_needed_location, SEEK_SET);
     write_le_word(bytes_needed, fp_out);
@@ -291,7 +286,6 @@ int lfg_pack_disks(implode_dictionary_type dictionary_size,
 {
     
     FILE *fp_in = NULL;
-//    FILE *fp_out;
     int file_num = 0;
     long length;
     unsigned int bytes_needed = 0;
@@ -302,8 +296,8 @@ int lfg_pack_disks(implode_dictionary_type dictionary_size,
     unsigned int bytes_written;
     int dictionary_bytes = 1 << (dictionary_size + 6);
     int file_count = 0;
-    unsigned int space_left = first_disk_size;
-    next_disk_size = disk_size;
+    unsigned int space_left = first_disk_size-1;
+    next_disk_size = disk_size-1;
     disk_count = 1;
     
     // Profiling
@@ -351,6 +345,8 @@ int lfg_pack_disks(implode_dictionary_type dictionary_size,
     printf("Filename       Dictionary Size   Original Size    Imploded Size  Savings\n" );
     printf("--------------------------------------------------------------------------\n" );
     
+    space_left-=28; //ftell(fp_out);
+    
     while (file_num < num_files) {
         
         // Open for binary read
@@ -395,6 +391,8 @@ int lfg_pack_disks(implode_dictionary_type dictionary_size,
         fputc( 2, fp_out);
         fputc( 0, fp_out);
         write_le_word(1, fp_out);  // 1, 0, 0, 0
+        
+        space_left-=32;
         
         // Time implode operation
         start = clock();

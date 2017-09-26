@@ -203,6 +203,8 @@ file_info_type file_info = {0};
 // If that fails, uses next filename in supplied list.
 FILE* new_file(void)
 {
+    unsigned long temp;
+    
     fclose(disk_info.fp);
     
     if (disk_info.file_pos >= archive_info.file_length)
@@ -212,8 +214,9 @@ FILE* new_file(void)
         archive_info.num_disks--;
     }
     
-    // Probably should only do this if last chars are "XXX"
-    disk_info.cur_filename[disk_info.filename_length-5]++;
+    // [TODO?] Only works on 8.3 filenames
+    temp = (disk_info.filename_length>5)?disk_info.filename_length-5:0;
+    disk_info.cur_filename[temp]++;
     
     if (!open_archive(&disk_info.fp, disk_info.cur_filename,
                       &archive_info.length, &archive_info.file_length))
@@ -273,11 +276,8 @@ FILE* new_file(void)
         printf("\n%s\t   %7ld bytes\n", disk_info.file_name,
                archive_info.file_length);
     
-    if (verbose != VERBOSE_LEVEL_SILENT)
-    {
-        print_file_info(file_info.filename, file_info.length,
-                        file_info.final_length);
-    }
+    if (verbose == VERBOSE_LEVEL_HIGH)
+        printf( "  %-12s\t    (continued)\n", file_info.filename);
     
     return disk_info.fp;
 }
@@ -293,10 +293,8 @@ int extract_archive(int file_max,
 {
     verbose = verbose_level;
     int file_index = 0;
-    long file_pos = 0;
     bool isNotEnd = true;
     char temp_buff[6];
-    int temp_length = 0;
     const char exp_buff[6] = {2,0,1,0,0,0};
     
     disk_info.file_index = file_index;
@@ -388,10 +386,7 @@ int extract_archive(int file_max,
         
         file_error |= !read_uint32(disk_info.fp, &file_info.length);
         
-        file_pos = ftell(disk_info.fp);
-        disk_info.file_pos = file_pos;
-        
-        // From here down....deal with eof?? (and call next_file()?
+        disk_info.file_pos = ftell(disk_info.fp);
         
         file_error |= !read_chunk(disk_info.fp, file_info.filename, 13);
         
@@ -410,12 +405,6 @@ int extract_archive(int file_max,
             return 0;
         }
         
-        //if debug
-        //for (int j=0; j<13; j++) {
-        //    printf(" %02X", (unsigned char)file_info.filename[j]);
-        //}
-        //printf (" %02X\n", temp_buff[0]);
-        
         if (memcmp(temp_buff, exp_buff, 6) != 0)
         {
             printf("Warning: Unexpected values in header. "
@@ -423,39 +412,23 @@ int extract_archive(int file_max,
         }
         
         disk_info.file_pos += file_info.length;
-        file_pos += file_info.length;
-        if ( file_pos <= archive_info.file_length)
-        {
-            if (verbose != VERBOSE_LEVEL_SILENT)
-            {
-                print_file_info(file_info.filename, file_info.length,
-                                file_info.final_length);
-            }
-            
-            disk_info.file_count++;
-            //temp_length = file_info.length;
-        }
-        else
-        {
-            if (verbose == VERBOSE_LEVEL_HIGH)
-                printf( "  %-12s\t    (incomplete)\n", file_info.filename);
-            //          printf( "  %-12s\t    %7ld bytes", file_info.filename,
-            //                file_info.length - (file_pos - archive_info.file_length));
-            
-            //temp_length = (uint32_t)(file_pos - archive_info.file_length);  // test
-        }
         
-      //  disk_info.bytes_read_so_far += temp_length;
+        if (verbose != VERBOSE_LEVEL_SILENT)
+        {
+            print_file_info(file_info.filename, file_info.length,
+                            file_info.final_length);
+        }
+
+        disk_info.file_count++;
+        
         disk_info.bytes_read_so_far += file_info.length;
         disk_info.bytes_written_so_far  += file_info.final_length;
         
-        if ( file_pos >= archive_info.file_length )
+        if ( disk_info.file_pos >= archive_info.file_length )
         {
             isNotEnd = false;
-           // archive_info.num_disks--;
+
         }
-        
-        printf("1. file pos %ld, file_length %ld\n", file_pos, archive_info.file_length);
         
         if (!info_only)
         {
@@ -488,7 +461,6 @@ int extract_archive(int file_max,
                 strcpy(complete_filename, file_info.filename);
             }
             
-
             // Check if file exists. Not handling any race condition
             // in which file is created after check by another process.
             // (Not worth the trouble here at least)
@@ -532,44 +504,22 @@ int extract_archive(int file_max,
             }
         }
         
-        printf("2. file pos %ld, file_length %ld\n", file_pos, archive_info.file_length);
-        
- //       if( file_pos < archive_info.file_length )
-        {
-        }
-        if (info_only && archive_info.num_disks && (file_pos >= archive_info.file_length ))
+        while (info_only && archive_info.num_disks &&
+               (disk_info.file_pos > archive_info.file_length ))
         {
             (void)new_file();
         }
+        
         fseek(disk_info.fp, disk_info.file_pos, SEEK_SET);
         
-        printf("num_disks %d  isnotend %d\n", archive_info.num_disks, (int)isNotEnd);
-        
-        // check for error in new_file here.(below)
+        // check for error in new_file here...?
         if (archive_info.num_disks && !isNotEnd)
         {
             isNotEnd = true;
-            
-            //
-            if (verbose)
-                printf("\n%s\t   %7ld bytes\n", disk_info.file_name,
-                       archive_info.file_length);
-            
-            disk_info.file_count++;
-            
-    //        if( 8+temp_length <= archive_info.file_length )
-            {
-    //            fseek(disk_info.fp, 8+temp_length, SEEK_SET);
-            }
-    //        else
-            {
-    //            isNotEnd = false;
-            }
-
         }
     }
     
-    if( file_pos < archive_info.file_length ) {
+    if( disk_info.file_pos < archive_info.file_length ) {
         printf( "Warning: Unexpected end of file data.\n" );
     }
     

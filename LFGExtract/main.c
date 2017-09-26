@@ -26,13 +26,13 @@ void print_usage ( void )
 
 void print_version ( void )
 {
-    printf("LFGExtract V1.2\n");
-    printf("by Kevin Seltmann, 2016\n\n");
+    printf("LFGExtract V1.3\n");
+    printf("(c) Seltmann Software, 2016-2017\n\n");
 }
 
 int main (int argc, const char * argv[])
 {
-    int verbose = 2;
+    int verbose = 1;
     bool info_only = false;
     bool show_stats = false;
     bool overwrite = false;
