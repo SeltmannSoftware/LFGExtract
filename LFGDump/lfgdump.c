@@ -1,32 +1,37 @@
 //
 //  main.c
-//  LFGExtract V 1.1
+//  LFGDump V 1.1
 //
 //  Created by Kevin Seltmann on 6/11/16.
-//  Copyright © 2016 Kevin Seltmann. All rights reserved.
+//  Copyright © 2016, 2017 Kevin Seltmann. All rights reserved.
 //
 
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
-#include "extract.h"
+#include "read_lfg.h"
+#define LFG_DUMP_VERSION_MAJOR 1
+#define LFG_DUMP_VERSION_MINOR 3
 
 void print_usage ( void )
 {
-    printf("Usage: LFGExtract [-i] [-s] archive_name(s)\n");
-    printf("Extracts files from archives used in older "
-           "LucasArts games.\n\n");
-    printf("   -d    Display process details\n");
-    printf("   -f    Force overwrite of existing files during extraction.\n");
-    printf("   -i    Show archive info only (do not extract)\n");
-    printf("   -o    Extract to directory\n");
-    printf("   -s    Display file stats\n");
-    printf("   -v    Display version info\n\n");
+    printf("Usage: LFGDump [options] archivefile\n");
+    printf("Extracts files from archives used in older ");
+    printf("LucasFilm Games (LFG) games.\n\n");
+    printf("   -d              Display process details\n");
+    printf("   -f              Force overwrite of existing files ");
+    printf("during extraction\n");
+    printf("   -i              Show archive info only (do not extract)\n");
+    printf("   -o output_dir   Extract to directory 'output_dir'\n");
+    printf("   -s              Display file stats\n");
+    printf("   -v              Display version info\n\n");
 }
 
 void print_version ( void )
 {
-    printf("LFGExtract V1.3\n");
+    printf("\nLFGDump V%d.%d\n",
+           LFG_DUMP_VERSION_MAJOR,
+           LFG_DUMP_VERSION_MINOR);
     printf("(c) Seltmann Software, 2016-2017\n\n");
 }
 
@@ -96,9 +101,13 @@ int main (int argc, const char * argv[])
     {
         int result;
         
-        result = extract_archive(argc - file_arg, &argv[file_arg],
-                                 info_only, show_stats, verbose,
-                                 overwrite, output_dir);
+        result = read_lfg_archive(argc - file_arg,
+                                  &argv[file_arg],
+                                  info_only,
+                                  show_stats,
+                                  verbose,
+                                  overwrite,
+                                  output_dir);
         
         if (result <= 0)
           result = 1;       // Extract failed, move to next file.

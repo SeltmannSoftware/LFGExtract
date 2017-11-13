@@ -21,6 +21,7 @@ unsigned int implode( FILE * in_file,
                       FILE * out_file,
                       unsigned int length,
                       implode_dictionary_type dictionary_size,
+                      unsigned int literal_encode_mode,
                       unsigned int *max_length,
                       FILE* (*max_reached)( FILE*, unsigned int* ) );
 

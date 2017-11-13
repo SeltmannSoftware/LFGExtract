@@ -1,15 +1,15 @@
 //
-//  extract.h
-//  LFGExtract
+//  read_lfg.h
+//  LFGDump
 //
 //  Created by Kevin Seltmann on 10/23/16.
 //  Copyright © 2016 Kevin Seltmann. All rights reserved.
 //
-//  Designed to extract the archiving used on LucasArts Classic Adventure
+//  Designed to read the archiving used on LucasArts Classic Adventure
 //  install files (*.XXX) and possibly other archives created with the PKWARE
 //  Data Compression Library from ~1990.  Implementation for LFG file
 //  extraction reverse-engineered from existing .XXX files.  Implementation
-//  of explode algorigrm based on specifications found on the internet.
+//  of explode algorigthm based on specifications found on the internet.
 
 /*
  
@@ -40,8 +40,8 @@
  
  */
 
-#ifndef extract_h
-#define extract_h
+#ifndef read_lfg_h
+#define read_lfg_h
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -53,12 +53,12 @@ typedef enum
     VERBOSE_LEVEL_HIGH
 } verbose_level_enum;
 
-int extract_archive(int file_max,
-                    const char * file_list[],
-                    bool info_only,
-                    bool show_stats,
-                    verbose_level_enum verbose_level,
-                    bool overwrite_flag,
-                    const char* output_dir);
+int read_lfg_archive(int file_max,
+                     const char * file_list[],
+                     bool info_only,
+                     bool show_stats,
+                     verbose_level_enum verbose_level,
+                     bool overwrite_flag,
+                     const char* output_dir);
 
-#endif /* extract_h */
+#endif /* read_lfg_h */

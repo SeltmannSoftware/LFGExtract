@@ -41,7 +41,7 @@
 #define ENCODE_MAX_OFFSET ( dictionary_size )
     // Maximum offset to use for encoding.  Maximum possible is the
     // dictionary size.
-    // LFG appears to have used the dictionary size - 1.
+    // LFG appears to have used the dictionary size - 2.
     // (i.e., 0 through 4094 rather than 0 through 4095.)
 
 #define ENCODE_MAX_LENGTH 518
@@ -55,6 +55,7 @@ unsigned int dictionary_bits;  // 4,5, or 6
 unsigned int bytes_encoded;
 unsigned int bytes_written;
 unsigned int bytes_length;
+unsigned int literal_mode = 0;
 
 
 // -- BIT WRITE ROUTINES --
@@ -76,6 +77,13 @@ typedef struct {
 
 write_bitstream_type write_bitstream;
 
+void ffputc( char val, FILE* fp){
+    fputc(val, fp);
+    bytes_written1++;
+    if (bytes_written>=max) max_reached();
+}
+
+
 // Write a single bit.
 void write_next_bit( unsigned int bit )
 {
@@ -88,7 +96,6 @@ void write_next_bit( unsigned int bit )
         fputc(write_bitstream.byte_value,
               write_bitstream.file_pointer );
         
-        //printf("\n byte %d (%2x) ", bytes_written, write_bitstream.byte_value);
         write_bitstream.byte_value = 0;
         bytes_written++;
         
@@ -102,56 +109,155 @@ void write_next_bit( unsigned int bit )
     
     write_bitstream.bit_position++;
     write_bitstream.bit_position%=8;
-   
 }
 
 // Flush remaining bits to next byte.
 void write_flush( void )
 {
     int j = (8-write_bitstream.bit_position) % 8;
+    int i;
     
-    for (int i=0; i<j; i++){
+    for (i=0; i<j; i++){
         write_next_bit(0);
     }
 }
 
 // Write some bits, msb first.
+// Max bit_count is (sizeof(int)/8). No error checking performed.
 void write_bits_msb_first( unsigned int bit_count,
                            unsigned int bits)
 {
-   
-    if (bit_count <= 8)
+    int i;
+    
+    for (i=bit_count-1; i>=0;i--)
     {
-        for (int i=bit_count-1; i>=0;i--)
-        {
-            write_next_bit((bits >> i) & 1);
-        }
+        write_next_bit((bits >> i) & 1);
     }
-
 }
 
 // Write some bits, lsb first.
+// Max bit_count is (sizeof(int)/8). No error checking is performed.
 void write_bits_lsb_first( unsigned int bit_count,
                            unsigned int bits)
 {
+    int i;
     
-    if (bit_count <= 8)
+    for (i=0; i<bit_count;i++)
     {
-        for (int i=0; i<bit_count;i++)
-        {
-            write_next_bit((bits >> i) & 1);
-        }
-    }    
+        write_next_bit((bits >> i) & 1);
+    }
 }
+
+
+// --- Routines for finding encoded literal ---
+// Lookup table for coverting dictionary offset to bit codes.
+struct {
+    unsigned int lookup_min;
+    unsigned int bit_count;
+    unsigned int bit_value;
+} literal_to_bits_table[] =
+{
+    { 182, 13, 0x49 },
+    {  91, 12, 0x7F },
+    {  81, 11, 0x49 },
+    {  76, 10, 0x29 },
+    {  69,  9, 0x1b },
+    {  53,  8, 0x1d },
+    {  32,  7, 0x23 },
+    {  12,  6, 0x25 },
+    {  01,  5, 0x1d },
+    {  00,  4, 0x0f }
+};
+
+uint8_t literal_table[256] = {
+    0x20,                                             // 0
+          0x45, 0x61, 0x65, 0x69, 0x6c, 0x6e, 0x6f,   // 1
+    0x72, 0x73, 0x74, 0x75,
+                            0x2d, 0x31, 0x41, 0x43,   // 12
+    0x44, 0x49, 0x4c, 0x4e, 0x4f, 0x52, 0x53, 0x54,
+    0x62, 0x63, 0x64, 0x66, 0x67, 0x68, 0x6d, 0x70,
+    0x0a, 0x0d, 0x28, 0x29, 0x2c, 0x2e, 0x30, 0x32,   // 32
+    0x33, 0x34, 0x35, 0x37, 0x38, 0x3d, 0x42, 0x46,
+    0x4d, 0x50, 0x55, 0x6b, 0x77,
+                                  0x09, 0x22, 0x27,   // 53
+    0x2a, 0x2f, 0x36, 0x39, 0x3a, 0x47, 0x48, 0x57,
+    0x5b, 0x5f, 0x76, 0x78, 0x79,
+                                   0x2b, 0x3e, 0x4b,  // 69
+    0x56, 0x58, 0x59, 0x5d,
+                            0x21, 0x24, 0x26, 0x71,   // 76
+    0x7a,
+          0x00, 0x3c, 0x3f, 0x4a, 0x51, 0x5a, 0x5c,   // 81
+    0x6a, 0x7b, 0x7c,
+                      0x01, 0x02, 0x03, 0x04, 0x05,   // 91
+    0x06, 0x07, 0x08, 0x0b, 0x0c, 0x0e, 0x0f, 0x10,
+    0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+    0x19, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x23, 0x25,
+    0x3b, 0x40, 0x5e, 0x60, 0x7d, 0x7e, 0x7f, 0xb0,
+    0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8,
+    0xb9, 0xba, 0xbb, 0xbc, 0xbd, 0xbe, 0xbf, 0xc0,
+    0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7, 0xc8,
+    0xc9, 0xca, 0xcb, 0xcc, 0xcd, 0xce, 0xcf, 0xd0,
+    0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7, 0xd8,
+    0xd9, 0xda, 0xdb, 0xdc, 0xdd, 0xde, 0xdf, 0xe1,
+    0xe5, 0xe9, 0xee, 0xf2, 0xf3, 0xf4,
+                                        0x1a, 0x80,  // 182
+    0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88,
+    0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90,
+    0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98,
+    0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, 0xa0,
+    0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8,
+    0xa9, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf, 0xe0,
+    0xe2, 0xe3, 0xe4, 0xe6, 0xe7, 0xe8, 0xea, 0xeb,
+    0xec, 0xed, 0xef, 0xf0, 0xf1, 0xf5, 0xf6, 0xf7,
+    0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff
+};
+
+unsigned char literal_lookup[256];
+
+void literal_init( void )
+{
+    int i;
+    for (i = 0; i < 256; i++)
+    {
+        literal_lookup[literal_table[i]]=i;
+    }
+}
+
+// Search through table to return number of bits and value of bits
+// for encoding given literal.
+void find_literal_codes(unsigned int literal,
+                        unsigned int * literal_bits,
+                        unsigned int * literal_code)
+{
+    int i, delta;
+    int literal_index = literal_lookup[literal];
+    
+    // Look through table for entry in range of the literal we want.
+    for (i = 0; literal_index < literal_to_bits_table[i].lookup_min; i++ );
+    
+    delta = literal_index - literal_to_bits_table[i].lookup_min;
+    *literal_bits = literal_to_bits_table[i].bit_count;
+    *literal_code = literal_to_bits_table[i].bit_value - delta;
+}
+
 
 void write_literal( unsigned int literal_val )
 {
     write_next_bit(0);
-    write_bits_lsb_first(8, literal_val);
     
-    //printf("\nWriting literal %2x\n", literal_val);
+    if( literal_mode == 0)
+    {
+        write_bits_lsb_first(8, literal_val);
+    }
+    else
+    {
+        unsigned int literal_bits;
+        unsigned int literal_code;
+    
+        find_literal_codes(literal_val, &literal_bits, &literal_code);
+        write_bits_msb_first(literal_bits, literal_code);
+    }
 };
-
 
 // --- Routines for finding length and offset ---
 
@@ -242,8 +348,6 @@ void write_dictionary_entry( int offset, int length )
     unsigned int length_lsb_bits;
     unsigned int length_lsb_value;
     
-    //printf("\n writing length %d offset %d\n", length, offset);
-    
     if (length!= 2)
     {
         low_offset_bits = dictionary_bits;
@@ -302,14 +406,14 @@ int length_dictionary_entry( int offset, int length)
                       &length_lsb_bits,
                       &length_lsb_value);
     
-    bit_length+=length_bits + length_lsb_bits;
+    bit_length += length_bits + length_lsb_bits;
     
     
     find_offset_codes(offset>>low_offset_bits,
                       &high_offset_bits,
                       &offset_msb_code);
     
-    bit_length+=high_offset_bits;
+    bit_length += high_offset_bits;
     
     return bit_length;
 }
@@ -388,25 +492,34 @@ bool check_dictionary( unsigned int* length,           // length found
         *length = final_length;
     }
     
+    // Validate length of 2
+    if ((final_length == 2) && (offset_val > 255))
+        match_found = false;
+    
     return match_found;
 }
 
 unsigned int next_load_point = 0;
 
-unsigned int implode( FILE * in_file,
-                      FILE * out_file,
-                      unsigned int length,
-                      implode_dictionary_type dictionary,
-                      unsigned int *max_length,
-                      FILE* (*max_reached)( FILE* , unsigned int*) )
+unsigned int implode(FILE * in_file,
+                     FILE * out_file,
+                     unsigned int length,
+                     unsigned int literal_encode_mode,
+                     implode_dictionary_type dictionary,
+                     unsigned int *max_length,
+                     FILE* (*max_reached)( FILE* , unsigned int*) )
 {
     unsigned int encode_length = 0;
     long bytes_loaded;
+    literal_mode = literal_encode_mode;
     
     encode_index = 0;
     bytes_encoded = 0;
     bytes_written = 2;  // account for header  
     bytes_length = length;
+    
+    //
+    literal_init(); // new
     
     // range check dictionary
     dictionary_size = 1 << ((int)dictionary + 6);
@@ -429,23 +542,22 @@ unsigned int implode( FILE * in_file,
         next_load_point = 0;
     }
     
-    fputc(0, out_file);
+    fputc(literal_mode, out_file); // new
     fputc(dictionary_bits, out_file);
     
     // While there are bytes to encode...
     while (bytes_encoded < length)
     {
-        unsigned int offset, offset_b;
+        unsigned int offset;
         bool use_literal = true;
         
         if (bytes_written>*max_length)
         {
-            printf(" Switch at %d for %d\n", bytes_written, *max_length);
-            
             if (max_reached)
             {
-                //write_bitstream.file_pointer = max_reached( write_bitstream.file_pointer );
-                write_bitstream.file_pointer = max_reached( write_bitstream.file_pointer, max_length );
+                write_bitstream.file_pointer = max_reached(
+                               write_bitstream.file_pointer,
+                               max_length );
                 out_file = write_bitstream.file_pointer;
                 *max_length+=bytes_written;
             }
@@ -472,112 +584,146 @@ unsigned int implode( FILE * in_file,
         encode_index %= ENCODE_BUFF_SIZE;
         
         // Encoding buffer and dictionary are one and the same.
-        // Dictionary is simple bytes that have already been encoded.
+        // Dictionary is simply bytes that have already been encoded.
         // Check for the longer run of next bytes in the dictionary.
-        if ( check_dictionary(&encode_length, &offset,
-                               encoding_buffer, encode_index))
+        if (check_dictionary(&encode_length, &offset,
+                              encoding_buffer, encode_index))
         {
-            int temp, temp1;
+            // Versions A,B,C,D -- different attempts to improve
+            //  compression. Common code start.
+            
+            unsigned int literal_length, literal_offset;
+            bool literal_check;
+
+            int sequence_bits, sequence_length;
             int possible_bitcount, bitcount_with_literal;
             float bits_per_byte,bits_per_byte_lit;
-            unsigned int new_length;
-            
-            if (encode_length<2)
-            printf("ENCODE LENGTH! %d\n", encode_length);
-            
+
             // By the time we are here, encode length must be >= 2
             // and encode_length + bytes already encoded should not
             // exceed the file length
  
             use_literal = false;
+ 
+            literal_check = check_dictionary(&literal_length,
+                                             &literal_offset,
+                                             encoding_buffer,
+                                             (encode_index+1) %
+                                             ENCODE_BUFF_SIZE);
             
+            // Version B - only the below code. Version C,D uses also.
+ 
             // A sequence was found, but now see if a better match can be
             // found if we use a literal for next byte, then sequence.
-            if ( check_dictionary( &new_length,
-                                   &offset_b, encoding_buffer,
-                                   (encode_index+1) % ENCODE_BUFF_SIZE ))
+            if ( literal_check )
             {
-                
-                // Compare the bit ratio for each case.
-                
-                // Make sure the new lengths are valid.
-                if ((new_length > 2) ||
-                    ((new_length ==2 ) && (offset_b <= 255)))
-                {
-                    possible_bitcount =
+                // Compare the overall bit ratio for each case.
+                possible_bitcount =
                         length_dictionary_entry(offset, encode_length);
-                    bitcount_with_literal =
-                        length_dictionary_entry(offset_b, new_length);
+                bitcount_with_literal =
+                        length_dictionary_entry(literal_offset, literal_length);
                     
-                    bits_per_byte = (float)possible_bitcount/encode_length;
-                    bits_per_byte_lit = (float)(bitcount_with_literal + 9)
-                                / (new_length + 1);
-                       
-               //         printf ("Bits/byte %f   ...  %f\n", bits_per_byte, bits_per_byte_lit);
-                        
-              //          printf("(L,O): %d, %d (%d) -> Literal + %d, %d (%d)\n", encode_length, offset, possible_bitcount, new_length, offset_b, bitcount_with_literal);
-                        
-                    if (bits_per_byte_lit <= bits_per_byte)
+                bits_per_byte = (float)possible_bitcount / encode_length;
+                bits_per_byte_lit = (float)(bitcount_with_literal + 9)
+                                / (literal_length + 1);
+ 
+                // For some reason, better results are produced when
+                // bias towards using literal. (<= rather than <)
+                if (bits_per_byte_lit <= bits_per_byte)
+                {
+                    use_literal = true;
+                    
+                    // Now we can check if this same sequence can do better if
+                    // used with the original sequence.
+                    sequence_length = literal_length + 1 - encode_length;
+                    if ( sequence_length > 0 )
                     {
-                        use_literal = true;
-                    }
-
-                    // Now we can check if same sequence can do better if used
-                    // with original sequence.
-                    temp1 = new_length + 1 - encode_length;
-                    if ( temp1 > 0 )
-                    {
-                        if ( temp1  == 1 )
+                        if ( sequence_length == 1 )
                         {
-                            temp = 9;
+                            sequence_bits = 9;
                         }
                         else
                         {
-                            if ((temp1 == 2) && (offset_b > 255))
-                                temp = 18;
+                            if ((sequence_length == 2) &&
+                                (literal_offset > 255))
+                                sequence_bits = 18;
                             else
-                                temp = length_dictionary_entry(offset_b, new_length+1-encode_length);
+                                sequence_bits = length_dictionary_entry(
+                                                            literal_offset,
+                                                            sequence_length);
                         }
-                        
-                        if (( possible_bitcount + temp) <= ( bitcount_with_literal + 9))
+                    
+                        if (( possible_bitcount + sequence_bits) <=
+                            ( bitcount_with_literal + 9))
                         {
-                            use_literal = false;
+                           // Version D //Version C comments out below line
+                           use_literal = false;
                         }
                     }
-                   // }
-                //printf("Actual bits:  %d vs %d\n\n", possible_bitcount + length_dictionary_entry(offset_b, new_length+1-encode_length), bitcount_with_literal + 9);
                 }
-                
+            }
+            
+            // Version A is below only.  Version C,D combines with above.
+            unsigned int next_length, next_offset;
+            
+            if (!literal_check)
+            {
+                literal_length = 1;
+            }
+            literal_length += 1;
+            
+            if ((encode_length==2)  && (offset > 255))
+            {
+                next_length=0;
+            }
+            else
+            {
+                if (!check_dictionary(&next_length,
+                                      &next_offset,
+                                      encoding_buffer,
+                                      (encode_index+encode_length) %
+                                      ENCODE_BUFF_SIZE))
+                {
+                    next_length = 1;
+                }
+                next_length += encode_length;
+            }
+            
+            // Version A includes else.
+            if (next_length > literal_length)
+            {
+                use_literal = false;
+            }
+            else
+            {    // For version A, uncomment below.
+            //   use_literal = true;
             }
         }
         
-        // If flag for literal is set, or encode length is less than 2,
-        // or encode length is 2 but offset is > 255, use literal.
-        // Else use dictionary.   (Encode length shouldn't be < 2. Ever)
-        if (use_literal || //(encode_length == 0) || (encode_length == 1) ||
-            ((encode_length == 2) && (offset > 255)))
+        // End Versions A,B,C,D
+        
+        // If flag for literal is set, use literal.
+        // Otherwise, use dictionary.
+        if (use_literal)
         {
             write_literal(encoding_buffer[encode_index]);
             encode_index++;
             bytes_encoded++;
-            encode_length = 0;
         }
         else
         {
             write_dictionary_entry(offset, encode_length);
             encode_index += encode_length;
             bytes_encoded += encode_length;
-            encode_length = 0;
         }
+        encode_length=0;
 
     }
     
-    printf("Bytes written %d, max length %d\n", bytes_written, *max_length);
-    
     // Write end-of-data marker (Length 519) and zero bits for final byte.
     write_next_bit(1);
-    write_bits_msb_first( 7, 0);
-    write_bits_lsb_first( 8, 0xFF);
+    write_bits_msb_first(7, 0);
+    write_bits_lsb_first(8, 0xFF);
     write_flush();
     
     *max_length-=bytes_written;

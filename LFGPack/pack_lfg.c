@@ -1,9 +1,9 @@
 //
-//  lfg_pack.c
+//  pack_lfg.c
 //  LFGMake
 //
 //  Created by Kevin Seltmann on 11/5/16.
-//  Copyright © 2016 Kevin Seltmann. All rights reserved.
+//  Copyright © 2016, 2017 Kevin Seltmann. All rights reserved.
 //
 
 #include <stdio.h>
@@ -12,7 +12,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include "implode.h"
-#include "lfg_pack.h"
+#include "pack_lfg.h"
 
 typedef struct
 {
@@ -35,7 +35,6 @@ typedef struct
 
 file_info_type file_info = {0};
 
-bool verbose = true;
 int file_count = 0;
 
 char* lfg_string = "LFG!";
@@ -73,17 +72,17 @@ void write_le_word( unsigned int value, FILE* file)
 int next_disk_size;
 int disk_count;
 
-
 FILE *fp_out;
 
 FILE* max_reached (FILE* current_file, unsigned int * max_length )
 {
-
     // Calculate archive length and fill in
     unsigned int archive_length = (unsigned int)(ftell(current_file) - 8);
     fseek(current_file, length_location, SEEK_SET);
     write_le_word(archive_length, current_file);
-    printf("--Archive length: %d\n", archive_length);
+    
+    //printf("Archive %s created. Length: %d bytes\n",
+    //       archive_name, archive_length);
     
     // Close archive.
     if ((current_file != fp_first ) && (current_file != fp_current_file_start))
@@ -121,168 +120,14 @@ FILE* max_reached (FILE* current_file, unsigned int * max_length )
 }
 
 
-int lfg_pack(implode_dictionary_type dictionary_size,
+int pack_lfg(lfg_dictionary_size_type dictionary_size,
+             unsigned int literal_mode,
              const char* archive,
              char** file_list,
-             int num_files )
-{
-    
-    FILE *fp_in = NULL;
-    FILE *fp_out;
-    int file_num = 0;
-    long length;
-    unsigned int bytes_needed = 0;
-    unsigned int archive_length = 0;
-    char file_name[14] = {0};
-    long compressed_length_location;
-    unsigned int bytes_written;
-    int dictionary_bytes = 1 << (dictionary_size + 6);
-    int file_count = 0;
-    unsigned int space_left = 4294967295;
-    disk_count = 0;
-    
-    // Profiling
-    clock_t start, stop;
-    
-    // Create archive
-    fp_out=fopen(archive, "wb+");
-    
-   // exists?
-    
-    if (fp_out== 0)
-    {
-        printf("Error creating file %s for archive.\n\n", archive);
-        return -1;
-    }
-    
-    strncpy( archive_name, archive, 13);
-    
-    // Write out "LFG!" tag
-    fwrite( lfg_string, sizeof(unsigned char), 4, fp_out);
-    
-    
-    // Placeholder for length of this archive.
-    length_location = ftell(fp_out);
-    write_le_word(0, fp_out);
-
-    printf("Length loc: %ld\n", length_location);
-    
-    // Write archive name (13 chars including null)
-    fwrite( archive_name, sizeof(unsigned char), 13, fp_out);
-    
-    fputc( 0, fp_out);
-    fputc( 1, fp_out); //disks
-    fputc( 0, fp_out);
-    
-    space_needed_location = ftell(fp_out);
-    write_le_word(0, fp_out);
-    
-    printf("Imploding file(s) and creating archive %s.\n\n", archive_name);
-    printf("Filename       Dictionary Size   Original Size    Imploded Size  Savings\n" );
-    printf("--------------------------------------------------------------------------\n" );
-    
-    while (file_num < num_files) {
-        
-        // Open for binary read
-        fp_in=fopen(file_list[file_num], "rb");
-        
-        printf("  %-12s ", file_list[file_num]);
-        
-        if (fp_in == 0)
-        {
-            printf("Error opening file %s.\n\n", file_list[file_num]);
-            return -1;
-        }
-        
-        // Find file length
-        fseek ( fp_in, 0, SEEK_END );
-        length = ftell( fp_in );
-        fseek ( fp_in, 0, SEEK_SET );
-        
-        // Output "FILE" tag
-        fwrite( file_string, sizeof(unsigned char), 4, fp_out);
-        
-        // Remember starting location
-        compressed_length_location = ftell(fp_out);
-        
-        // Write 0 (4 bytes). This will be replaced later
-        write_le_word(0, fp_out);
-        
-        // Write file name (max 13 char including null)
-        strncpy( file_name, file_list[file_num++], 13);
-        fwrite( file_name, sizeof(unsigned char), 13, fp_out);
-        
-        // Write 0
-        fputc( 0, fp_out);
-        
-        // Track sum of uncompressed bytes
-        bytes_needed += length;
-        
-        // Write uncompressed length (4 bytes)
-        write_le_word( (unsigned int)length, fp_out);
-        
-        fputc( 2, fp_out);
-        fputc( 0, fp_out);
-        write_le_word(1, fp_out);  // 1, 0, 0, 0
-        
-        // Time implode operation
-        start = clock();
-        
-        bytes_written = implode(fp_in,
-                                fp_out,
-                                (unsigned int)length,
-                                dictionary_size,
-                                &space_left,
-                                max_reached);
-        file_count++;
-        stop = clock();
-        
-        fclose(fp_in);
-        
-        // Fill in compressed file length
-        fseek(fp_out, compressed_length_location, SEEK_SET);
-        bytes_written += 24;
-        write_le_word(bytes_written, fp_out);
-        
-        // Move back to end of file
-        fseek ( fp_out, 0, SEEK_END );
-        
-        printf("     %4d bytes  %8ld bytes   %8d bytes %7.2f\%%\n",
-               (int)dictionary_bytes,
-               length, bytes_written, 100-(float)(bytes_written * 100) /
-               length);
-        
-        printf("  Implode took %f seconds.\n",
-               (double)(stop - start) / CLOCKS_PER_SEC);
-        
-    }
-    
-    printf("Total files: %d\n", file_count);
-
-    // Calculate archive length and fill in
-    archive_length = (unsigned int)(ftell(fp_out) - 8);
-    fseek(fp_out, length_location, SEEK_SET);
-    write_le_word(archive_length, fp_out);
-
-    // Fill in the overall bytes needed
-    fseek(fp_out, space_needed_location, SEEK_SET);
-    write_le_word(bytes_needed, fp_out);
-    
-    printf("--Archive length: %d\n", archive_length);
-    printf("--Archive Total length: %d\n", bytes_needed);
-    
-    fclose(fp_out);
-
-    return 0;
-}
-
-
-int lfg_pack_disks(implode_dictionary_type dictionary_size,
-                   const char* archive,
-                   char** file_list,
-                   int num_files,
-                   int first_disk_size,
-                   int disk_size)
+             int num_files,
+             unsigned int first_disk_size,
+             unsigned int disk_size,
+             bool verbose)
 {
     
     FILE *fp_in = NULL;
@@ -294,23 +139,21 @@ int lfg_pack_disks(implode_dictionary_type dictionary_size,
     char file_name[14] = {0};
     long compressed_length_location;
     unsigned int bytes_written;
-    int dictionary_bytes = 1 << (dictionary_size + 6);
+    int dictionary_bytes;
     int file_count = 0;
     unsigned int space_left = first_disk_size-1;
     next_disk_size = disk_size-1;
     disk_count = 1;
+    implode_dictionary_type dictionary_val;
     
     // Profiling
     clock_t start, stop;
-    
     
     // currently archive must be filename only, no path
     // Create archive
     fp_out=fopen(archive, "wb+");
     
     fp_first = fp_out;  // for filling in overall length;
-    // exists?
-    
     // exists?
     
     if (fp_out== 0)
@@ -341,13 +184,18 @@ int lfg_pack_disks(implode_dictionary_type dictionary_size,
     space_needed_location = ftell(fp_out);
     write_le_word(0, fp_out);
     
-    printf("Imploding file(s) and creating archive %s.\n\n", archive_name);
-    printf("Filename       Dictionary Size   Original Size    Imploded Size  Savings\n" );
+    printf("\nImploding file(s) and creating archive %s...\n\n", archive_name);
+    printf("  Filename     Dictionary Size   Original Size    Imploded Size  Ratio\n" );
     printf("--------------------------------------------------------------------------\n" );
     
     space_left-=28; //ftell(fp_out);
     
     while (file_num < num_files) {
+        
+        if (strlen(file_list[file_num])==0)
+        {
+            continue;
+        }
         
         // Open for binary read
         fp_in=fopen(file_list[file_num], "rb");
@@ -394,13 +242,34 @@ int lfg_pack_disks(implode_dictionary_type dictionary_size,
         
         space_left-=32;
         
+        if (dictionary_size == LFG_DEFAULT)
+        {
+            if (length <= 1024)
+            {
+                dictionary_val = DICTIONARY_1K_SIZE;
+            }
+            else if (length <=2048)
+            {
+                dictionary_val = DICTIONARY_2K_SIZE;
+            }
+            else
+            {
+                dictionary_val = DICTIONARY_4K_SIZE;
+            }
+        }
+        else
+        {
+            dictionary_val = (implode_dictionary_type) dictionary_size;
+        }
+        
         // Time implode operation
         start = clock();
         
         bytes_written = implode(fp_in,
                                 fp_out,
                                 (unsigned int)length,
-                                dictionary_size,
+                                literal_mode,
+                                dictionary_val,
                                 &space_left,
                                 max_reached);
         
@@ -423,28 +292,35 @@ int lfg_pack_disks(implode_dictionary_type dictionary_size,
         // Move back to end of file
         fseek ( fp_out, 0, SEEK_END );
         
+        dictionary_bytes = 1 << (dictionary_val + 6);
+        
         printf("     %4d bytes  %8ld bytes   %8d bytes %7.2f\%%\n",
                (int)dictionary_bytes,
                length, bytes_written, 100-(float)(bytes_written * 100) /
                length);
         
-        printf("  Implode took %f seconds.\n",
-               (double)(stop - start) / CLOCKS_PER_SEC);
-        
+        if (verbose == true)
+        {
+            printf("  Implode took %f seconds.\n",
+                   (double)(stop - start) / CLOCKS_PER_SEC);
+        }
     }
-    
-    printf("Total files: %d\n", file_count);
     
     // Calculate archive length and fill in
     archive_length = (unsigned int)(ftell(fp_out) - 8);
     /// fp_start
     fseek(fp_out, length_location, SEEK_SET);
     write_le_word(archive_length, fp_out);
-    
-    printf("--Archive length: %d\n", archive_length);
-    printf("--Disk count: %d\n", disk_count);
-    printf("--Archive Total length: %d\n", bytes_needed);
-    
+
+    printf("------------------------------------------------------------------------\n");
+    printf("                                %8d bytes   %8d bytes %7.2f\%%\n",
+           bytes_needed, archive_length+8, 100-(float)(archive_length * 100) /
+           bytes_needed);
+    printf("Packed %d files onto %d disk file",
+        file_count, disk_count);
+    if (disk_count > 1) printf ("s");
+    printf(".\n");
+
     // Fill in the disk
     fseek(fp_first, disk_count_location, SEEK_SET);
     fputc( (char)(disk_count & 0xFF), fp_first);

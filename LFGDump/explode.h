@@ -1,9 +1,9 @@
 //
 //  explode.h
-//  LFGExtract V 1.1
+//  LFGDump V 1.1
 //
 //  Created by Kevin Seltmann on 6/12/16.
-//  Copyright © 2016 Kevin Seltmann. All rights reserved.
+//  Copyright © 2016, 2017 Kevin Seltmann. All rights reserved.
 //
 //  Designed to extract the archiving used on LucasArts Classic Adventure
 //  install files (*.XXX) and possibly other archives created with the PKWARE
@@ -17,6 +17,22 @@
 
 #include <stdio.h>
 
+typedef struct {
+    unsigned int dictionary_size;
+    unsigned int literal_mode;
+    
+    // Statistics
+    unsigned int literal_count;
+    unsigned int dictionary_count;
+    int max_offset;
+    int min_offset;
+    int max_length;
+    int min_length;
+} explode_stats_type;
+
+unsigned int write_buffer_get_bytes_written( void );
+unsigned long read_buffer_get_bytes_read( void );
+
 /* Extract a file from an archive file and explode it.
    in_fp:           Pointer to imploded data start in archive file.
    out_filename:    Output filename [consider making this fp_out].
@@ -28,7 +44,7 @@
 int extract_and_explode( FILE* in_fp,
                          FILE* out_fp,
                          int   expected_length,
-                         bool print_stats,
+                         explode_stats_type* explode_stats,
                          FILE* (*eof_reached)(void) );
 
 #endif /* explode_h */

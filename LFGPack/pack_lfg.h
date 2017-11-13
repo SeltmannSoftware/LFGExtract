@@ -1,6 +1,6 @@
 //
-//  lfg_pack.h
-//  LFGExtract
+//  pack_lfg.h
+//  LFGMake
 //
 //  Created by Kevin Seltmann on 11/5/16.
 //  Copyright © 2016 Kevin Seltmann. All rights reserved.
@@ -57,8 +57,8 @@
   */
 
 
-#ifndef lfg_pack_h
-#define lfg_pack_h
+#ifndef pack_lfg_h
+#define pack_lfg_h
 
 #include <stdio.h>
 #include "implode.h"
@@ -70,16 +70,13 @@ typedef enum {
     LFG_DEFAULT
 } lfg_dictionary_size_type;
 
-int lfg_pack(implode_dictionary_type dictionary_size,
+int pack_lfg(lfg_dictionary_size_type dictionary_size,
+             unsigned int literal_mode,
              const char* archive,
              char** file_list,
-             int num_files );
+             int num_files,
+             unsigned int first_disk_size,
+             unsigned int disk_size,
+             bool verbose);
 
-int lfg_pack_disks(implode_dictionary_type dictionary_size,
-                   const char* archive,
-                   char** file_list,
-                   int num_files,
-                   int first_disk_size,
-                   int disk_size);
-
-#endif /* lfg_pack_h */
+#endif /* lfgpack_h */
