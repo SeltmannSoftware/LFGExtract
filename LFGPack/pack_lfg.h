@@ -77,6 +77,7 @@ int pack_lfg(lfg_dictionary_size_type dictionary_size,
              int num_files,
              unsigned int first_disk_size,
              unsigned int disk_size,
+             unsigned optimize_level,
              bool verbose);
 
 #endif /* lfgpack_h */

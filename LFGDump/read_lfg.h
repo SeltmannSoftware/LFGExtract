@@ -6,10 +6,10 @@
 //  Copyright © 2016 Kevin Seltmann. All rights reserved.
 //
 //  Designed to read the archiving used on LucasArts Classic Adventure
-//  install files (*.XXX) and possibly other archives created with the PKWARE
-//  Data Compression Library from ~1990.  Implementation for LFG file
+//  install files (*.XXX) and other Lucasfilm Games archives created with the
+//  PKWARE Data Compression Library from ~1990.  Implementation for LFG file
 //  extraction reverse-engineered from existing .XXX files.  Implementation
-//  of explode algorigthm based on specifications found on the internet.
+//  of explode algorithm based on specifications found on the internet.
 
 /*
  

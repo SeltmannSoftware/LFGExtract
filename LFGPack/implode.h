@@ -17,11 +17,26 @@ typedef enum {
     DICTIONARY_4K_SIZE = 6
 } implode_dictionary_type;
 
+typedef struct {
+    unsigned int dictionary_size;
+    unsigned int literal_mode;
+    
+    // Statistics
+    unsigned int literal_count;
+    unsigned int dictionary_count;
+    int max_offset;
+    int min_offset;
+    int max_length;
+    int min_length;
+} implode_stats_type;
+
 unsigned int implode( FILE * in_file,
                       FILE * out_file,
                       unsigned int length,
-                      implode_dictionary_type dictionary_size,
                       unsigned int literal_encode_mode,
+                      implode_dictionary_type dictionary_size,
+                      unsigned int optimization_level,
+                      implode_stats_type* implode_stats,
                       unsigned int *max_length,
                       FILE* (*max_reached)( FILE*, unsigned int* ) );
 

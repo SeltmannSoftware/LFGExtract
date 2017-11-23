@@ -374,7 +374,7 @@ int read_lfg_archive(int file_max,
         else
             printf( "Archived file info:\n" );
         
-        printf("                    Archived       Exploded             ");
+        printf("                    Archived      Extracted             ");
         printf("Literal   Dictionary" );
         
         if (show_stats)
@@ -480,6 +480,13 @@ int read_lfg_archive(int file_max,
                 return -1;
             }
             
+            
+            //temp
+           // printf("\n%s\n", complete_filename);
+        //    for (int a=0; a<strlen(complete_filename); a++) printf("%x ",complete_filename[a]);
+        //    printf("\n");
+                   
+            
             // Open the output file.
             out_fp=fopen(complete_filename, "wb+");
             if (out_fp == 0)
@@ -535,7 +542,7 @@ int read_lfg_archive(int file_max,
                 {
                     printf("          N/A         N/A");
                 }
-                printf("    %f", elapsed_time);
+                printf("     %7.3f", elapsed_time);
             }
             printf("\n");
         }

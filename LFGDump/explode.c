@@ -35,26 +35,12 @@ typedef struct {
     // Signals a read error
     int error_flag;
     
-    // Stats.  Used to track number of bits for a length/offset combo.
-    unsigned int bitcount;
-    
-    // Stats. Used to track total number of encoded bits read.
-    unsigned long total_bits;
-    
+    // Stats. Used to track total number of encoded bytes read.
     unsigned long total_bytes;
     
 } read_bitstream_type;
 
 read_bitstream_type read_bitstream;
-
-// Returns number of bits read, then resets count.
-// Used for statistics.
-unsigned int read_bitcount( void )
-{
-    unsigned int bitcount = read_bitstream.bitcount;
-    read_bitstream.bitcount = 0;
-    return bitcount;
-}
 
 // Read bit from bitstream byte.
 unsigned int read_next_bit( void )
@@ -98,9 +84,6 @@ unsigned int read_next_bit( void )
     
     read_bitstream.current_bit_position++;
     read_bitstream.current_bit_position%=8;
-    
-    read_bitstream.bitcount++;
-    read_bitstream.total_bits++;
     
     return (unsigned int) value;
 }
@@ -553,7 +536,6 @@ int extract_and_explode( FILE* in_fp,
     read_bitstream.eof_reached = eof_reached;
     read_bitstream.current_bit_position = 0;
     read_bitstream.error_flag = 0;
-    read_bitstream.total_bits = 0;
     read_bitstream.total_bytes = 0;
 
     // Reset write parameters. [ Consider making this a function. ]
@@ -614,16 +596,9 @@ int extract_and_explode( FILE* in_fp,
         else
         {
             // -- Dictionary Look Up --
-            // Reset internal bitcount. Keeps track of number of bits
-            // read for stats.
-            int bitcount_a = read_bitcount();
-            int bitcount_b;
             
             // Dictionary look up.  Find length and offset.
             explode.length = read_copy_length();
-            
-            // Stats. Gives number of bits used for length.
-            bitcount_a = read_bitcount();
             
             // Length of 519 indicates end of file.
             if (explode.length == 519)
@@ -650,13 +625,7 @@ int extract_and_explode( FILE* in_fp,
                     explode.max_offset = explode.offset;
                 if (explode.offset < explode.min_offset)
                     explode.min_offset = explode.offset;
-                
-                // More stats. Gives bits used for offset.
-                bitcount_b = read_bitcount();
-                
-                //printf("  %d bits encoded %d bits (%d bytes)\n",
-                //    bitcount_a + bitcount_b + 1,
-                //    explode.length * 8, explode.length);
+
             }
         }
     } while ( !explode.end_marker &&
@@ -683,15 +652,6 @@ int extract_and_explode( FILE* in_fp,
         explode_stats->max_offset = explode.max_offset;
         explode_stats->min_offset = explode.min_offset;
     }
-    
-// Length histogram. Interesting!
-  //for (int i=0; i<520; i++)
-  {
-  //    if (explode.length_histogram[i])
-      {
-  //        printf("\t%d: %d\t", i, explode.length_histogram[i]);
-      }
-  }
     
     return write_buffer.bytes_written;
 }

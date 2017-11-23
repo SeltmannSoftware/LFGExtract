@@ -19,8 +19,7 @@ void print_usage ( void )
     printf("Extracts files from archives used in older ");
     printf("LucasFilm Games (LFG) games.\n\n");
     printf("   -d              Display process details\n");
-    printf("   -f              Force overwrite of existing files ");
-    printf("during extraction\n");
+    printf("   -f              Force overwrite of existing files during extraction\n");
     printf("   -i              Show archive info only (do not extract)\n");
     printf("   -o output_dir   Extract to directory 'output_dir'\n");
     printf("   -s              Display file stats\n");

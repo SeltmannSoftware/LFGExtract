@@ -4,12 +4,22 @@
 <dict>
 	<key>SchemeUserState</key>
 	<dict>
+		<key>LFGDump.xcscheme</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>3</integer>
+		</dict>
 		<key>LFGExtract.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<true/>
 			<key>orderHint</key>
 			<integer>0</integer>
+		</dict>
+		<key>LFGMake.xcscheme</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>2</integer>
 		</dict>
 		<key>LFGPack.xcscheme</key>
 		<dict>
@@ -35,6 +45,11 @@
 			<true/>
 		</dict>
 		<key>0A7FEC221D0CB7EF0071F4A8</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>0AA9F9011FBEC23F00ADF89B</key>
 		<dict>
 			<key>primary</key>
 			<true/>

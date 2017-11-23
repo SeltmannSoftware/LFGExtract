@@ -19,11 +19,13 @@ void print_usage ( void )
     printf("Creates an LFG-type archive.\n\n");
     printf("Options:\n");
     //printf("  -i                    Show compression info only (do not create archive)\n");
-    printf("  -f filelist           Use filelist (text file) as archive file list\n");
     printf("  -d N                  Use dictionary size of N k (where N=1,2,4)\n");
-    printf("  -s initial_size size  Break archive into pieces of size bytes.\n");
-    printf("  -v                    Print version info\n");
+    printf("  -f filelist           Use filelist (text file) as archive file list\n");
     printf("  -h                    Display this help\n\n");
+    printf("  -l M                  Set literal mode (1: encode; 0: no coding)\n");
+    printf("  -m initial_size size  Set max size for first and subsequent archive files\n");
+    printf("  -s                    Print stats for each encode\n");
+    printf("  -v                    Print version info\n");
 }
 
 void print_version ( void )
@@ -44,6 +46,7 @@ int main (int argc, const char * argv[])
     unsigned int first_disk = 4294967295;
     bool verbose = false;
     unsigned int literal_mode = 0;
+    unsigned int optimize_level = 3;
     
     for (int j = 1; j<argc; j++)
     {
@@ -63,6 +66,17 @@ int main (int argc, const char * argv[])
             }
             literal_mode = atoi(argv[j]);
         }
+        else if (strcmp(argv[j], "-o") == 0)
+        {
+            j++;
+            file_arg+=2;
+            if (j >= argc)
+            {
+                print_version();
+                return 0;
+            }
+            optimize_level = atoi(argv[j]);
+        }
         else if (strcmp(argv[j], "-f") == 0)
         {
             j++;
@@ -74,7 +88,7 @@ int main (int argc, const char * argv[])
             }
             file_list = argv[j];
         }
-        else if (strcmp(argv[j], "-s") == 0)
+        else if (strcmp(argv[j], "-m") == 0)
         {
             j++;
             file_arg+=3;
@@ -95,6 +109,11 @@ int main (int argc, const char * argv[])
         {
             print_usage();
             return 0;
+        }
+        else if (strcmp(argv[j], "-s") == 0)
+        {
+            verbose = true;
+            file_arg++;
         }
         else if (strcmp(argv[j], "-d") == 0)
         {
@@ -150,9 +169,12 @@ int main (int argc, const char * argv[])
         {
             buffer[strcspn(buffer, "\r\n")] = 0;
             long length = strlen( buffer );
-            file_list_ptr[file_count] = malloc( sizeof(char) * length + 1);
-            strcpy(file_list_ptr[file_count], buffer);
-            file_count++;
+            if (length)
+            {
+                file_list_ptr[file_count] = malloc( sizeof(char) * length + 1);
+                strcpy(file_list_ptr[file_count], buffer);
+                file_count++;
+            }
         }
         
         fclose(list_ptr);
@@ -182,6 +204,7 @@ int main (int argc, const char * argv[])
              file_count,
              first_disk,
              disk_size,
+             optimize_level,
              verbose);
     
     // Free file list

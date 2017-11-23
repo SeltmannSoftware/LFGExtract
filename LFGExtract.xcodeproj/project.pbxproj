@@ -13,6 +13,12 @@
 		0A40356D1F8DD95600383D4E /* implode.c in Sources */ = {isa = PBXBuildFile; fileRef = 0A940EF51DEBD743003D126C /* implode.c */; };
 		0A4FACB71DBDD8B300BFB1F5 /* read_lfg.c in Sources */ = {isa = PBXBuildFile; fileRef = 0A4FACB51DBDD8B300BFB1F5 /* read_lfg.c */; };
 		0A7FEC271D0CB7EF0071F4A8 /* lfgdump.c in Sources */ = {isa = PBXBuildFile; fileRef = 0A7FEC261D0CB7EF0071F4A8 /* lfgdump.c */; };
+		0AA9F8F81FBEC23200ADF89B /* pack_lfg.c in Sources */ = {isa = PBXBuildFile; fileRef = 0A70CEAD1DCE779D00D00E92 /* pack_lfg.c */; };
+		0AA9F8F91FBEC23200ADF89B /* lfgmake.c in Sources */ = {isa = PBXBuildFile; fileRef = 0A2D02051DC7104F00197600 /* lfgmake.c */; };
+		0AA9F8FA1FBEC23200ADF89B /* implode.c in Sources */ = {isa = PBXBuildFile; fileRef = 0A940EF51DEBD743003D126C /* implode.c */; };
+		0AA9F9031FBEC23F00ADF89B /* lfgdump.c in Sources */ = {isa = PBXBuildFile; fileRef = 0A7FEC261D0CB7EF0071F4A8 /* lfgdump.c */; };
+		0AA9F9041FBEC23F00ADF89B /* explode.c in Sources */ = {isa = PBXBuildFile; fileRef = 0A7FEC2D1D0DE2910071F4A8 /* explode.c */; };
+		0AA9F9051FBEC23F00ADF89B /* read_lfg.c in Sources */ = {isa = PBXBuildFile; fileRef = 0A4FACB51DBDD8B300BFB1F5 /* read_lfg.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -26,6 +32,24 @@
 			runOnlyForDeploymentPostprocessing = 1;
 		};
 		0A7FEC211D0CB7EF0071F4A8 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		0AA9F8FC1FBEC23200ADF89B /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		0AA9F9071FBEC23F00ADF89B /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = /usr/share/man/man1/;
@@ -49,6 +73,8 @@
 		0A7FEC2E1D0DE2910071F4A8 /* explode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = explode.h; sourceTree = "<group>"; };
 		0A940EF51DEBD743003D126C /* implode.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = implode.c; path = LFGPack/implode.c; sourceTree = "<group>"; };
 		0A940EF61DEBD743003D126C /* implode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = implode.h; path = LFGPack/implode.h; sourceTree = "<group>"; };
+		0AA9F9001FBEC23200ADF89B /* LFGMake */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = LFGMake; sourceTree = BUILT_PRODUCTS_DIR; };
+		0AA9F90B1FBEC23F00ADF89B /* LFGDump */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = LFGDump; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -60,6 +86,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		0A7FEC201D0CB7EF0071F4A8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0AA9F8FB1FBEC23200ADF89B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0AA9F9061FBEC23F00ADF89B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -103,6 +143,8 @@
 			children = (
 				0A7FEC231D0CB7EF0071F4A8 /* LFGExtract */,
 				0A2D02021DC70E6700197600 /* LFGPack */,
+				0AA9F9001FBEC23200ADF89B /* LFGMake */,
+				0AA9F90B1FBEC23F00ADF89B /* LFGDump */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -156,6 +198,40 @@
 			productReference = 0A7FEC231D0CB7EF0071F4A8 /* LFGExtract */;
 			productType = "com.apple.product-type.tool";
 		};
+		0AA9F8F61FBEC23200ADF89B /* LFGMake */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0AA9F8FD1FBEC23200ADF89B /* Build configuration list for PBXNativeTarget "LFGMake" */;
+			buildPhases = (
+				0AA9F8F71FBEC23200ADF89B /* Sources */,
+				0AA9F8FB1FBEC23200ADF89B /* Frameworks */,
+				0AA9F8FC1FBEC23200ADF89B /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LFGMake;
+			productName = LFGExtract;
+			productReference = 0AA9F9001FBEC23200ADF89B /* LFGMake */;
+			productType = "com.apple.product-type.tool";
+		};
+		0AA9F9011FBEC23F00ADF89B /* LFGDump */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0AA9F9081FBEC23F00ADF89B /* Build configuration list for PBXNativeTarget "LFGDump" */;
+			buildPhases = (
+				0AA9F9021FBEC23F00ADF89B /* Sources */,
+				0AA9F9061FBEC23F00ADF89B /* Frameworks */,
+				0AA9F9071FBEC23F00ADF89B /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LFGDump;
+			productName = LFGExtract;
+			productReference = 0AA9F90B1FBEC23F00ADF89B /* LFGDump */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +260,8 @@
 			targets = (
 				0A7FEC221D0CB7EF0071F4A8 /* LFGExtract */,
 				0A2D01F81DC70E6700197600 /* LFGPack */,
+				0AA9F8F61FBEC23200ADF89B /* LFGMake */,
+				0AA9F9011FBEC23F00ADF89B /* LFGDump */,
 			);
 		};
 /* End PBXProject section */
@@ -206,6 +284,26 @@
 				0A7FEC271D0CB7EF0071F4A8 /* lfgdump.c in Sources */,
 				0A2D020A1DC71E3200197600 /* explode.c in Sources */,
 				0A4FACB71DBDD8B300BFB1F5 /* read_lfg.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0AA9F8F71FBEC23200ADF89B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0AA9F8F81FBEC23200ADF89B /* pack_lfg.c in Sources */,
+				0AA9F8F91FBEC23200ADF89B /* lfgmake.c in Sources */,
+				0AA9F8FA1FBEC23200ADF89B /* implode.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0AA9F9021FBEC23F00ADF89B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0AA9F9031FBEC23F00ADF89B /* lfgdump.c in Sources */,
+				0AA9F9041FBEC23F00ADF89B /* explode.c in Sources */,
+				0AA9F9051FBEC23F00ADF89B /* read_lfg.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -337,6 +435,34 @@
 			};
 			name = Release;
 		};
+		0AA9F8FE1FBEC23200ADF89B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		0AA9F8FF1FBEC23200ADF89B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		0AA9F9091FBEC23F00ADF89B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		0AA9F90A1FBEC23F00ADF89B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -363,6 +489,24 @@
 			buildConfigurations = (
 				0A7FEC2B1D0CB7EF0071F4A8 /* Debug */,
 				0A7FEC2C1D0CB7EF0071F4A8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0AA9F8FD1FBEC23200ADF89B /* Build configuration list for PBXNativeTarget "LFGMake" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0AA9F8FE1FBEC23200ADF89B /* Debug */,
+				0AA9F8FF1FBEC23200ADF89B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0AA9F9081FBEC23F00ADF89B /* Build configuration list for PBXNativeTarget "LFGDump" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0AA9F9091FBEC23F00ADF89B /* Debug */,
+				0AA9F90A1FBEC23F00ADF89B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

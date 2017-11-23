@@ -35,7 +35,7 @@ unsigned long read_buffer_get_bytes_read( void );
 
 /* Extract a file from an archive file and explode it.
    in_fp:           Pointer to imploded data start in archive file.
-   out_filename:    Output filename [consider making this fp_out].
+   out_fp:          Output filename. NULL exceptable (stats only).
    expected_length: Expected length of file (0 if not provided).
    eof_reached():   Callback that indicates archive EOF is reached.
                     Callback should return new file pointer with
@@ -45,6 +45,6 @@ int extract_and_explode( FILE* in_fp,
                          FILE* out_fp,
                          int   expected_length,
                          explode_stats_type* explode_stats,
-                         FILE* (*eof_reached)(void) );
+                         FILE* (*eof_reached)(void));
 
 #endif /* explode_h */

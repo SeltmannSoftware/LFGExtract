@@ -53,7 +53,6 @@ unsigned int encode_index;
 unsigned int dictionary_size;  // 0x1000, 0x800, 0x400 for 4k, 2k, 1k
 unsigned int dictionary_bits;  // 4,5, or 6
 unsigned int bytes_encoded;
-unsigned int bytes_written;
 unsigned int bytes_length;
 unsigned int literal_mode = 0;
 
@@ -73,14 +72,38 @@ typedef struct {
     // Signals a read error
     int error_flag;
     
+    unsigned int bytes_written;
+    
 } write_bitstream_type;
 
 write_bitstream_type write_bitstream;
 
-void ffputc( char val, FILE* fp){
-    fputc(val, fp);
-    bytes_written1++;
-    if (bytes_written>=max) max_reached();
+struct {
+    unsigned int *max_length;
+    FILE* (*max_reached)( FILE* , unsigned int*);
+} max_check;
+
+
+void ffputc( unsigned char val, FILE* fp )
+{
+    if (fp)
+        fputc(val, fp);
+    
+    write_bitstream.bytes_written++;
+
+    if (max_check.max_length)
+    {
+        if (write_bitstream.bytes_written>=*max_check.max_length)
+        {
+            if (max_check.max_reached)
+            {
+                write_bitstream.file_pointer = max_check.max_reached(
+                                                                     write_bitstream.file_pointer,
+                                                                     max_check.max_length );
+                *max_check.max_length+=write_bitstream.bytes_written;
+            }
+        }
+    }
 }
 
 
@@ -93,13 +116,13 @@ void write_next_bit( unsigned int bit )
 
     if (write_bitstream.bit_position == 7)
     {
-        fputc(write_bitstream.byte_value,
+        ffputc(write_bitstream.byte_value,
               write_bitstream.file_pointer );
         
         write_bitstream.byte_value = 0;
-        bytes_written++;
         
         // Check if error is reported.
+        if (write_bitstream.file_pointer) //fix
         if (ferror(write_bitstream.file_pointer)) {
             printf("Error: file error.\n");
             write_bitstream.error_flag = true;
@@ -256,6 +279,22 @@ void write_literal( unsigned int literal_val )
     
         find_literal_codes(literal_val, &literal_bits, &literal_code);
         write_bits_msb_first(literal_bits, literal_code);
+    }
+};
+
+int length_literal( unsigned int literal_val )
+{
+    if( literal_mode == 0)
+    {
+        return 9;
+    }
+    else
+    {
+        unsigned int literal_bits;
+        unsigned int literal_code;
+        
+        find_literal_codes(literal_val, &literal_bits, &literal_code);
+        return literal_bits;
     }
 };
 
@@ -506,6 +545,8 @@ unsigned int implode(FILE * in_file,
                      unsigned int length,
                      unsigned int literal_encode_mode,
                      implode_dictionary_type dictionary,
+                     unsigned int optimization_level,
+                     implode_stats_type* implode_stats,
                      unsigned int *max_length,
                      FILE* (*max_reached)( FILE* , unsigned int*) )
 {
@@ -513,13 +554,28 @@ unsigned int implode(FILE * in_file,
     long bytes_loaded;
     literal_mode = literal_encode_mode;
     
+    int optimize_type = optimization_level; //remove 3
+    
     encode_index = 0;
     bytes_encoded = 0;
-    bytes_written = 2;  // account for header  
     bytes_length = length;
     
-    //
-    literal_init(); // new
+    write_bitstream.bytes_written = 0;
+    max_check.max_length = max_length;
+    max_check.max_reached = max_reached;
+    
+    // Initialize statistics.
+    if (implode_stats)
+    {
+        implode_stats->literal_count = 0;
+        implode_stats->dictionary_count = 0;
+        implode_stats->max_offset = 0;
+        implode_stats->min_offset = 0x8000;
+        implode_stats->max_length = 0;
+        implode_stats->min_length = 0x8000;
+    }
+    
+    literal_init();
     
     // range check dictionary
     dictionary_size = 1 << ((int)dictionary + 6);
@@ -542,27 +598,15 @@ unsigned int implode(FILE * in_file,
         next_load_point = 0;
     }
     
-    fputc(literal_mode, out_file); // new
-    fputc(dictionary_bits, out_file);
+    ffputc(literal_mode, write_bitstream.file_pointer);
+    ffputc(dictionary_bits, write_bitstream.file_pointer);
     
     // While there are bytes to encode...
     while (bytes_encoded < length)
     {
         unsigned int offset;
         bool use_literal = true;
-        
-        if (bytes_written>*max_length)
-        {
-            if (max_reached)
-            {
-                write_bitstream.file_pointer = max_reached(
-                               write_bitstream.file_pointer,
-                               max_length );
-                out_file = write_bitstream.file_pointer;
-                *max_length+=bytes_written;
-            }
-        }
-        
+
         // Check if data should be loaded into buffer.
         if ((encode_index & ENCODE_BUFF_MASK) ==
             (next_load_point & ENCODE_BUFF_MASK))
@@ -580,7 +624,7 @@ unsigned int implode(FILE * in_file,
                 next_load_point = ENCODE_BUFF_LOAD_DONE;
             }
         }
-        
+
         encode_index %= ENCODE_BUFF_SIZE;
         
         // Encoding buffer and dictionary are one and the same.
@@ -589,119 +633,132 @@ unsigned int implode(FILE * in_file,
         if (check_dictionary(&encode_length, &offset,
                               encoding_buffer, encode_index))
         {
-            // Versions A,B,C,D -- different attempts to improve
+            // Versions A,B,D -- different attempts to improve
             //  compression. Common code start.
-            
-            unsigned int literal_length, literal_offset;
-            bool literal_check;
-
-            int sequence_bits, sequence_length;
-            int possible_bitcount, bitcount_with_literal;
-            float bits_per_byte,bits_per_byte_lit;
 
             // By the time we are here, encode length must be >= 2
             // and encode_length + bytes already encoded should not
             // exceed the file length
  
             use_literal = false;
- 
-            literal_check = check_dictionary(&literal_length,
-                                             &literal_offset,
-                                             encoding_buffer,
-                                             (encode_index+1) %
-                                             ENCODE_BUFF_SIZE);
             
-            // Version B - only the below code. Version C,D uses also.
- 
-            // A sequence was found, but now see if a better match can be
-            // found if we use a literal for next byte, then sequence.
-            if ( literal_check )
+            if (optimize_type>0)
             {
-                // Compare the overall bit ratio for each case.
-                possible_bitcount =
-                        length_dictionary_entry(offset, encode_length);
-                bitcount_with_literal =
-                        length_dictionary_entry(literal_offset, literal_length);
+                unsigned int literal_length, literal_offset;
+                bool literal_check;
+ 
+                literal_check = check_dictionary(&literal_length,
+                                                 &literal_offset,
+                                                 encoding_buffer,
+                                                 (encode_index+1) %
+                                                 ENCODE_BUFF_SIZE);
+            
+                // Version B - only the below code. Version D uses also.
+                if (optimize_type>1)
+                {
+                    int sequence_bits, sequence_length;
+                    int possible_bitcount, bitcount_with_literal;
+                    float bits_per_byte,bits_per_byte_lit;
                     
-                bits_per_byte = (float)possible_bitcount / encode_length;
-                bits_per_byte_lit = (float)(bitcount_with_literal + 9)
+                    // A sequence was found, but now see if a better match can be
+                    // found if we use a literal for next byte, then sequence.
+                    if ( literal_check )
+                    {
+                        // Compare the overall bit ratio for each case.
+                        possible_bitcount =
+                            length_dictionary_entry(offset, encode_length);
+                        bitcount_with_literal =
+                            length_dictionary_entry(literal_offset, literal_length);
+                    
+                        bits_per_byte = (float)possible_bitcount / encode_length;
+                        bits_per_byte_lit = (float)(bitcount_with_literal + length_literal(encoding_buffer[encode_index])) //9)
                                 / (literal_length + 1);
  
-                // For some reason, better results are produced when
-                // bias towards using literal. (<= rather than <)
-                if (bits_per_byte_lit <= bits_per_byte)
-                {
-                    use_literal = true;
+                        // For some reason, better results are produced when
+                        // bias towards using literal. (<= rather than <)
+                        if (bits_per_byte_lit <= bits_per_byte)
+                        {
+                            use_literal = true;
                     
-                    // Now we can check if this same sequence can do better if
-                    // used with the original sequence.
-                    sequence_length = literal_length + 1 - encode_length;
-                    if ( sequence_length > 0 )
-                    {
-                        if ( sequence_length == 1 )
-                        {
-                            sequence_bits = 9;
-                        }
-                        else
-                        {
-                            if ((sequence_length == 2) &&
-                                (literal_offset > 255))
-                                sequence_bits = 18;
-                            else
-                                sequence_bits = length_dictionary_entry(
+                            // Now we can check if this same sequence can do better if
+                            // used with the original sequence.
+                            sequence_length = literal_length + 1 - encode_length;
+                            if ( sequence_length > 0 )
+                            {
+                                if ( sequence_length == 1 )
+                                {
+                                    sequence_bits = length_literal(encoding_buffer[encode_index + encode_length]); //9;
+                                }
+                                else
+                                {
+                                    if ((sequence_length == 2) &&
+                                        (literal_offset > 255))
+                                    {
+                                        sequence_bits = length_literal(encoding_buffer[encode_index + encode_length]) +
+                                        length_literal(encoding_buffer[encode_index + encode_length+1]);//18;
+                                    }
+                                    else
+                                    {
+                                        sequence_bits = length_dictionary_entry(
                                                             literal_offset,
                                                             sequence_length);
-                        }
+                                    }
+                                }
                     
-                        if (( possible_bitcount + sequence_bits) <=
-                            ( bitcount_with_literal + 9))
-                        {
-                           // Version D //Version C comments out below line
-                           use_literal = false;
+                                if (( possible_bitcount + sequence_bits) <=
+                                    ( bitcount_with_literal + length_literal(encoding_buffer[encode_index]))) //9))
+                                {
+                                    use_literal = false;
+                                }
+                        
+                            }
                         }
                     }
                 }
-            }
             
-            // Version A is below only.  Version C,D combines with above.
-            unsigned int next_length, next_offset;
-            
-            if (!literal_check)
-            {
-                literal_length = 1;
-            }
-            literal_length += 1;
-            
-            if ((encode_length==2)  && (offset > 255))
-            {
-                next_length=0;
-            }
-            else
-            {
-                if (!check_dictionary(&next_length,
-                                      &next_offset,
-                                      encoding_buffer,
-                                      (encode_index+encode_length) %
-                                      ENCODE_BUFF_SIZE))
+                if ((optimize_type==1) || (optimize_type ==3))
                 {
-                    next_length = 1;
-                }
-                next_length += encode_length;
-            }
+                    // Version A is below only.  Version C,D combines with above.
+                    unsigned int next_length, next_offset;
             
-            // Version A includes else.
-            if (next_length > literal_length)
-            {
-                use_literal = false;
-            }
-            else
-            {    // For version A, uncomment below.
-            //   use_literal = true;
+                    if (!literal_check)
+                    {
+                        literal_length = 1;
+                    }
+                    literal_length += 1;
+            
+                    if ((encode_length==2)  && (offset > 255))
+                    {
+                        next_length=0;
+                    }
+                    else
+                    {
+                        if (!check_dictionary(&next_length,
+                                              &next_offset,
+                                              encoding_buffer,
+                                              (encode_index+encode_length) %
+                                              ENCODE_BUFF_SIZE))
+                        {
+                            next_length = 1;
+                        }
+                        next_length += encode_length;
+                    }
+                    // Version A includes else.
+                    if (next_length > literal_length)
+                    {
+                        use_literal = false;
+                    }
+                    else
+                    {    // For version A
+                        if (optimize_type==1)
+                            use_literal = true;
+                    }
+                }
             }
         }
         
-        // End Versions A,B,C,D
-        
+        // End Versions A,B,D
+ 
         // If flag for literal is set, use literal.
         // Otherwise, use dictionary.
         if (use_literal)
@@ -709,12 +766,28 @@ unsigned int implode(FILE * in_file,
             write_literal(encoding_buffer[encode_index]);
             encode_index++;
             bytes_encoded++;
+            
+            if (implode_stats) implode_stats->literal_count++;
         }
         else
         {
             write_dictionary_entry(offset, encode_length);
             encode_index += encode_length;
             bytes_encoded += encode_length;
+            
+            if (implode_stats)
+            {
+                implode_stats->dictionary_count++;
+            
+                if (encode_length > implode_stats->max_length)
+                    implode_stats->max_length = encode_length;
+                if (encode_length < implode_stats->min_length)
+                    implode_stats->min_length = encode_length;
+                if (offset > implode_stats->max_offset)
+                    implode_stats->max_offset = offset;
+                if (offset < implode_stats->min_offset)
+                    implode_stats->min_offset = offset;
+            }
         }
         encode_length=0;
 
@@ -726,8 +799,10 @@ unsigned int implode(FILE * in_file,
     write_bits_lsb_first(8, 0xFF);
     write_flush();
     
-    *max_length-=bytes_written;
+    // fix
+    if (max_length)
+        *max_length-=write_bitstream.bytes_written;
     
-    return bytes_written;
+    return write_bitstream.bytes_written;
 }
 
