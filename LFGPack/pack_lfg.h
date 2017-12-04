@@ -64,20 +64,20 @@
 #include "implode.h"
 
 typedef enum {
-    LFG_DICTIONARY_1K = 4,
-    LFG_DICTIONARY_2K = 5,
-    LFG_DICTIONARY_4K = 6,
+    LFG_WINDOW_1K = 4,
+    LFG_WINDOW_2K = 5,
+    LFG_WINDOW_4K = 6,
     LFG_DEFAULT
-} lfg_dictionary_size_type;
+} lfg_window_size_type;
 
-int pack_lfg(lfg_dictionary_size_type dictionary_size,
+int pack_lfg(lfg_window_size_type dictionary_size,
              unsigned int literal_mode,
              const char* archive,
              char** file_list,
              int num_files,
-             unsigned int first_disk_size,
-             unsigned int disk_size,
-             unsigned optimize_level,
+             unsigned long first_disk_size,
+             unsigned long disk_size,
+             unsigned int optimize_level,
              bool verbose);
 
 #endif /* lfgpack_h */

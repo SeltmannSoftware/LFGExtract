@@ -6,7 +6,7 @@
 //  Copyright © 2016 Kevin Seltmann. All rights reserved.
 //
 //  Designed to "implode" files in a similar fashion to the PKWARE Data
-//  Compression Library from ~1990.  Implementation based on
+//  Compression Library (DCL) from ~1990.  Implementation based on
 //  specification found on the internet
 
 #include "implode.h"
@@ -36,108 +36,108 @@
 
 #define ENCODE_MIN_OFFSET 0
     // Minimum offset to use for encoding.
-    // LFG appears to have used 1.
+    // DCL appears to have used 1.
 
-#define ENCODE_MAX_OFFSET ( dictionary_size )
+#define ENCODE_MAX_OFFSET ( dictionary_size_bytes )
     // Maximum offset to use for encoding.  Maximum possible is the
     // dictionary size.
-    // LFG appears to have used the dictionary size - 2.
+    // DCL appears to have used the dictionary size - 2.
     // (i.e., 0 through 4094 rather than 0 through 4095.)
 
 #define ENCODE_MAX_LENGTH 518
     // Maximum length to use for encoding.  Max possible is 518.
-    // LFG appears to have used 516.
+    // DCL appears to have used 516.
 
 unsigned char encoding_buffer[ENCODE_BUFF_SIZE];
-unsigned int encode_index;
-unsigned int dictionary_size;  // 0x1000, 0x800, 0x400 for 4k, 2k, 1k
-unsigned int dictionary_bits;  // 4,5, or 6
-unsigned int bytes_encoded;
-unsigned int bytes_length;
-unsigned int literal_mode = 0;
+//unsigned int encode_index;
+unsigned int dictionary_size_bytes;  // 0x1000, 0x800, 0x400 for 4k, 2k, 1k
+unsigned int dictionary_size_bits;   // 4,5, or 6
+unsigned long bytes_encoded;
+unsigned long bytes_length;
+implode_literal_type literal_mode = IMPLODE_BINARY;
 
 
 // -- BIT WRITE ROUTINES --
 typedef struct {
     
-    // Output file pointer.
+    // Output file pointer. (Could be replaced by access function.)
     FILE* file_pointer;
     
-    // The current byte that is being built.
-    unsigned char byte_value;
-    
-    // Bit position in current byte for the next bit to be written.
-    int bit_position;
-    
-    // Signals a read error
+    // Signals a write error
     int error_flag;
     
-    unsigned int bytes_written;
+    unsigned long bytes_written;
+    
+    unsigned long *max_length;
+    
+    FILE* (*max_reached)( FILE* , unsigned long*);
     
 } write_bitstream_type;
 
 write_bitstream_type write_bitstream;
 
-struct {
-    unsigned int *max_length;
-    FILE* (*max_reached)( FILE* , unsigned int*);
-} max_check;
-
-
-void ffputc( unsigned char val, FILE* fp )
+void ffputc( unsigned char val )
 {
-    if (fp)
-        fputc(val, fp);
+    if (write_bitstream.file_pointer)
+    {
+        fputc(val, write_bitstream.file_pointer);
+        
+        // Check if error is reported.
+        if (ferror(write_bitstream.file_pointer)) {
+            printf("Error: file error.\n");
+            write_bitstream.error_flag = true;
+        }
+    }
     
     write_bitstream.bytes_written++;
 
-    if (max_check.max_length)
+    if ((write_bitstream.max_length) && (write_bitstream.file_pointer))
     {
-        if (write_bitstream.bytes_written>=*max_check.max_length)
+        if (write_bitstream.bytes_written>=*write_bitstream.max_length)
         {
-            if (max_check.max_reached)
+            if (write_bitstream.max_reached)
             {
-                write_bitstream.file_pointer = max_check.max_reached(
-                                                                     write_bitstream.file_pointer,
-                                                                     max_check.max_length );
-                *max_check.max_length+=write_bitstream.bytes_written;
+                write_bitstream.file_pointer =
+                    write_bitstream.max_reached( write_bitstream.file_pointer,
+                                                 write_bitstream.max_length );
+                *write_bitstream.max_length+=write_bitstream.bytes_written;
             }
         }
     }
 }
 
 
+/* Bit write functions and supporting structures */
+struct {
+    // The current byte that is being built.
+    unsigned char byte_value;
+    
+    // Bit position in current byte for the next bit to be written.
+    int bit_position;
+} write_bits;
+
 // Write a single bit.
 void write_next_bit( unsigned int bit )
 {
     
-    write_bitstream.byte_value |=
-        (bit & 0x1) << write_bitstream.bit_position;
+    write_bits.byte_value |=
+        (bit & 0x1) << write_bits.bit_position;
 
-    if (write_bitstream.bit_position == 7)
+    if (write_bits.bit_position == 7)
     {
-        ffputc(write_bitstream.byte_value,
-              write_bitstream.file_pointer );
+        ffputc(write_bits.byte_value);
         
-        write_bitstream.byte_value = 0;
-        
-        // Check if error is reported.
-        if (write_bitstream.file_pointer) //fix
-        if (ferror(write_bitstream.file_pointer)) {
-            printf("Error: file error.\n");
-            write_bitstream.error_flag = true;
-        }
-
+        write_bits.byte_value = 0;
     }
     
-    write_bitstream.bit_position++;
-    write_bitstream.bit_position%=8;
+    write_bits.bit_position++;
+    write_bits.bit_position%=8;
 }
 
 // Flush remaining bits to next byte.
 void write_flush( void )
 {
-    int j = (8-write_bitstream.bit_position) % 8;
+    int j = (8-write_bits.bit_position) % 8;
     int i;
     
     for (i=0; i<j; i++){
@@ -173,7 +173,7 @@ void write_bits_lsb_first( unsigned int bit_count,
 
 
 // --- Routines for finding encoded literal ---
-// Lookup table for coverting dictionary offset to bit codes.
+// Lookup table for converting dictionary offset to bit codes.
 struct {
     unsigned int lookup_min;
     unsigned int bit_count;
@@ -192,7 +192,7 @@ struct {
     {  00,  4, 0x0f }
 };
 
-uint8_t literal_table[256] = {
+unsigned char literal_table[256] = {
     0x20,                                             // 0
           0x45, 0x61, 0x65, 0x69, 0x6c, 0x6e, 0x6f,   // 1
     0x72, 0x73, 0x74, 0x75,
@@ -247,7 +247,7 @@ void literal_init( void )
 }
 
 // Search through table to return number of bits and value of bits
-// for encoding given literal.
+// for encoding given literal. Literal to be found is a single byte (8 bits).
 void find_literal_codes(unsigned int literal,
                         unsigned int * literal_bits,
                         unsigned int * literal_code)
@@ -258,6 +258,8 @@ void find_literal_codes(unsigned int literal,
     // Look through table for entry in range of the literal we want.
     for (i = 0; literal_index < literal_to_bits_table[i].lookup_min; i++ );
     
+    // Use table data to find number of bits and the bit sequence to
+    // represent the value.
     delta = literal_index - literal_to_bits_table[i].lookup_min;
     *literal_bits = literal_to_bits_table[i].bit_count;
     *literal_code = literal_to_bits_table[i].bit_value - delta;
@@ -266,17 +268,17 @@ void find_literal_codes(unsigned int literal,
 
 void write_literal( unsigned int literal_val )
 {
+    unsigned int literal_bits;
+    unsigned int literal_code;
+    
     write_next_bit(0);
     
-    if( literal_mode == 0)
+    if( literal_mode == IMPLODE_BINARY )
     {
         write_bits_lsb_first(8, literal_val);
     }
     else
     {
-        unsigned int literal_bits;
-        unsigned int literal_code;
-    
         find_literal_codes(literal_val, &literal_bits, &literal_code);
         write_bits_msb_first(literal_bits, literal_code);
     }
@@ -284,18 +286,19 @@ void write_literal( unsigned int literal_val )
 
 int length_literal( unsigned int literal_val )
 {
-    if( literal_mode == 0)
+    unsigned int literal_bits;
+    unsigned int literal_code;
+    
+    if( literal_mode == IMPLODE_BINARY )
     {
-        return 9;
+        literal_bits = 8;
     }
     else
     {
-        unsigned int literal_bits;
-        unsigned int literal_code;
-        
         find_literal_codes(literal_val, &literal_bits, &literal_code);
-        return literal_bits;
     }
+    
+    return literal_bits+1;
 };
 
 // --- Routines for finding length and offset ---
@@ -389,21 +392,20 @@ void write_dictionary_entry( int offset, int length )
     
     if (length!= 2)
     {
-        low_offset_bits = dictionary_bits;
+        low_offset_bits = dictionary_size_bits;
     }
     else
     {
         low_offset_bits = 2;
     }
-    
-    write_next_bit(1);
-    
+   
     find_length_codes(length,
                       &length_bits,
                       &length_code,
                       &length_lsb_bits,
                       &length_lsb_value);
-    
+
+    write_next_bit(1);
     write_bits_msb_first( length_bits, length_code);
     write_bits_lsb_first( length_lsb_bits, length_lsb_value);
     
@@ -428,9 +430,9 @@ int length_dictionary_entry( int offset, int length)
     
     int bit_length = 1;
     
-    if (length!= 2)
+    if (length != 2)
     {
-        low_offset_bits = dictionary_bits;
+        low_offset_bits = dictionary_size_bits;
     }
     else
     {
@@ -445,8 +447,7 @@ int length_dictionary_entry( int offset, int length)
                       &length_lsb_bits,
                       &length_lsb_value);
     
-    bit_length += length_bits + length_lsb_bits;
-    
+    bit_length += length_bits + length_lsb_bits;    
     
     find_offset_codes(offset>>low_offset_bits,
                       &high_offset_bits,
@@ -458,7 +459,6 @@ int length_dictionary_entry( int offset, int length)
 }
 
 
-
 // Check dictionary for a byte sequence match at a particular position.
 // Target sequence is already in buffer (as those are the bytes being encoded).
 // Takes the buffer (bytes), two positions within the buffer,
@@ -467,8 +467,8 @@ int length_dictionary_entry( int offset, int length)
 int compare_in_circular( unsigned char * buffer,
                          unsigned int position1,
                          unsigned int position2,
-                         int max_length,
-                         int circular_buffer_size)
+                         long max_length,
+                         long circular_buffer_size)
 {
     int i = 0;
     
@@ -499,11 +499,11 @@ bool check_dictionary( unsigned int* length,           // length found
                        unsigned int encoding_index)    // start index
 {
     bool match_found = false;
-    int search_size = MIN(ENCODE_MAX_OFFSET, bytes_encoded);
+    long search_size = MIN(ENCODE_MAX_OFFSET, bytes_encoded);
     unsigned int offset_val = 0;
     int final_length = 1;
     int length_now;
-    int max_length = MIN(bytes_length - bytes_encoded, ENCODE_MAX_LENGTH);
+    long max_length = MIN(bytes_length - bytes_encoded, ENCODE_MAX_LENGTH);
     
     for (int i=(ENCODE_MIN_OFFSET+1); i<=search_size; i++)
     {
@@ -538,50 +538,48 @@ bool check_dictionary( unsigned int* length,           // length found
     return match_found;
 }
 
-unsigned int next_load_point = 0;
-
-unsigned int implode(FILE * in_file,
-                     FILE * out_file,
-                     unsigned int length,
-                     unsigned int literal_encode_mode,
-                     implode_dictionary_type dictionary,
-                     unsigned int optimization_level,
-                     implode_stats_type* implode_stats,
-                     unsigned int *max_length,
-                     FILE* (*max_reached)( FILE* , unsigned int*) )
+unsigned long implode(FILE * in_file,
+                      FILE * out_file,
+                      unsigned long length,
+                      implode_literal_type literal_encode_mode,
+                      implode_dictionary_size_type dictionary_size,
+                      unsigned int optimization_level,
+                      implode_stats_type* implode_stats,
+                      unsigned long *max_length,
+                      FILE* (*max_reached)(FILE* , unsigned long*) )
 {
     unsigned int encode_length = 0;
     long bytes_loaded;
+    int optimize_type = optimization_level;
+    unsigned int next_load_point = 0;
+    unsigned int encode_index = 0;
     literal_mode = literal_encode_mode;
-    
-    int optimize_type = optimization_level; //remove 3
-    
-    encode_index = 0;
+    //encode_index = 0;
     bytes_encoded = 0;
     bytes_length = length;
-    
+
+    // Init bitstream data
     write_bitstream.bytes_written = 0;
-    max_check.max_length = max_length;
-    max_check.max_reached = max_reached;
+    write_bitstream.max_length = max_length;
+    write_bitstream.max_reached = max_reached;
+    write_bitstream.file_pointer = out_file;
+
+    // range check dictionary
+    dictionary_size_bytes = 1 << (dictionary_size + 6);
+    dictionary_size_bits = dictionary_size;
     
     // Initialize statistics.
     if (implode_stats)
     {
         implode_stats->literal_count = 0;
-        implode_stats->dictionary_count = 0;
+        implode_stats->lookup_count = 0;
         implode_stats->max_offset = 0;
-        implode_stats->min_offset = 0x8000;
+        implode_stats->min_offset = dictionary_size_bytes;
         implode_stats->max_length = 0;
-        implode_stats->min_length = 0x8000;
+        implode_stats->min_length = 1024;
     }
     
     literal_init();
-    
-    // range check dictionary
-    dictionary_size = 1 << ((int)dictionary + 6);
-    dictionary_bits = (int)dictionary;
-    
-    write_bitstream.file_pointer = out_file;
     
     bytes_loaded = fread( encoding_buffer,
                           sizeof encoding_buffer[0],
@@ -598,8 +596,8 @@ unsigned int implode(FILE * in_file,
         next_load_point = 0;
     }
     
-    ffputc(literal_mode, write_bitstream.file_pointer);
-    ffputc(dictionary_bits, write_bitstream.file_pointer);
+    ffputc(literal_mode);
+    ffputc(dictionary_size_bits);
     
     // While there are bytes to encode...
     while (bytes_encoded < length)
@@ -777,7 +775,7 @@ unsigned int implode(FILE * in_file,
             
             if (implode_stats)
             {
-                implode_stats->dictionary_count++;
+                implode_stats->lookup_count++;
             
                 if (encode_length > implode_stats->max_length)
                     implode_stats->max_length = encode_length;

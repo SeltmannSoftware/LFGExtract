@@ -18,53 +18,41 @@ void print_usage ( void )
     printf("\nUsage: LFGMake [options] archive_name archive_file_1 archive_file_2 ... \n");
     printf("Creates an LFG-type archive.\n\n");
     printf("Options:\n");
-    //printf("  -i                    Show compression info only (do not create archive)\n");
-    printf("  -d N                  Use dictionary size of N k (where N=1,2,4)\n");
     printf("  -f filelist           Use filelist (text file) as archive file list\n");
-    printf("  -h                    Display this help\n\n");
-    printf("  -l M                  Set literal mode (1: encode; 0: no coding)\n");
+    printf("  -h                    Display this help\n");
     printf("  -m initial_size size  Set max size for first and subsequent archive files\n");
-    printf("  -s                    Print stats for each encode\n");
+    printf("  -s                    Print stats\n");
+    printf("  -t                    Use ASCII (text) mode encoding of literals\n");
     printf("  -v                    Print version info\n");
+    printf("  -w N                  Use sliding window size of N k (where N=1,2,4)\n");
 }
 
 void print_version ( void )
 {
-    printf("\nLFGMake V1.1\n");
+    printf("\nLFGMake V1.2\n");
     printf("(c) Seltmann Software, 2016-2017\n\n");
 }
 
 int main (int argc, const char * argv[])
 {    
     int file_arg = 1;
-    lfg_dictionary_size_type dictionary_size = LFG_DEFAULT;
+    lfg_window_size_type dictionary_size = LFG_DEFAULT;
     const char* file_list = NULL;
     FILE * list_ptr = NULL;
     char buffer[256];
     char* file_list_ptr[256];
-    unsigned int disk_size = 4294967295;
-    unsigned int first_disk = 4294967295;
+    unsigned int disk_size = 0xFFFFFFFF;
+    unsigned int first_disk = 0xFFFFFFFF;
     bool verbose = false;
     unsigned int literal_mode = 0;
     unsigned int optimize_level = 3;
     
     for (int j = 1; j<argc; j++)
     {
-        if (strcmp(argv[j], "-i") == 0)
+        if (strcmp(argv[j], "-t") == 0)
         {
-            //info_only = true;
             file_arg++;
-        }
-        else if (strcmp(argv[j], "-l") == 0)
-        {
-            j++;
-            file_arg+=2;
-            if (j >= argc)
-            {
-                print_version();
-                return 0;
-            }
-            literal_mode = atoi(argv[j]);
+            literal_mode = 1;
         }
         else if (strcmp(argv[j], "-o") == 0)
         {
@@ -115,7 +103,7 @@ int main (int argc, const char * argv[])
             verbose = true;
             file_arg++;
         }
-        else if (strcmp(argv[j], "-d") == 0)
+        else if (strcmp(argv[j], "-w") == 0)
         {
             file_arg+=2;
             j++;
@@ -127,15 +115,15 @@ int main (int argc, const char * argv[])
                 switch ( value )
                 {
                     case 1:
-                        dictionary_size = LFG_DICTIONARY_1K;
+                        dictionary_size = LFG_WINDOW_1K;
                         break;
                         
                     case 2:
-                        dictionary_size = LFG_DICTIONARY_2K;
+                        dictionary_size = LFG_WINDOW_2K;
                         break;
                         
                     case 4:
-                        dictionary_size = LFG_DICTIONARY_4K;
+                        dictionary_size = LFG_WINDOW_4K;
                         break;
                         
                     default:

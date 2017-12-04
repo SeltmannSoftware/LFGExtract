@@ -12,32 +12,36 @@
 #include <stdio.h>
 
 typedef enum {
-    DICTIONARY_1K_SIZE = 4,
-    DICTIONARY_2K_SIZE = 5,
-    DICTIONARY_4K_SIZE = 6
-} implode_dictionary_type;
+    IMPLODE_BINARY = 0,
+    IMPLODE_ASCII = 1
+} implode_literal_type;
+
+typedef enum {
+    IMPLODE_1K_DICTIONARY = 4,     // 1024 bytes.
+    IMPLODE_2K_DICTIONARY = 5,     // 2048 bytes.
+    IMPLODE_4K_DICTIONARY = 6      // 4096 bytes.
+} implode_dictionary_size_type;
 
 typedef struct {
-    unsigned int dictionary_size;
-    unsigned int literal_mode;
-    
     // Statistics
-    unsigned int literal_count;
-    unsigned int dictionary_count;
-    int max_offset;
-    int min_offset;
-    int max_length;
-    int min_length;
+    long literal_count;  // Number of literals
+    long lookup_count;   // Number of lookups into sliding dictionary
+    
+    int max_offset;    // Max possible offset is 2^(6+N)-1
+                       // Assume N < 9 (valid values are 4-6).
+    int min_offset;    // Min offset is 0
+    int max_length;    // Max possible length is 518
+    int min_length;    // Min length is 2
 } implode_stats_type;
 
-unsigned int implode( FILE * in_file,
-                      FILE * out_file,
-                      unsigned int length,
-                      unsigned int literal_encode_mode,
-                      implode_dictionary_type dictionary_size,
-                      unsigned int optimization_level,
-                      implode_stats_type* implode_stats,
-                      unsigned int *max_length,
-                      FILE* (*max_reached)( FILE*, unsigned int* ) );
+unsigned long implode( FILE * in_file,
+                       FILE * out_file,
+                       unsigned long length,
+                       implode_literal_type literal_encode_mode,
+                       implode_dictionary_size_type dictionary_size,
+                       unsigned int optimization_level,
+                       implode_stats_type* implode_stats,
+                       unsigned long *max_length,
+                       FILE* (*max_reached)( FILE*, unsigned long* ) );
 
 #endif /* implode_h */

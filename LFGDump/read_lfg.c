@@ -380,11 +380,11 @@ int read_lfg_archive(int file_max,
         if (show_stats)
             printf("   Literal  Dictionary      Min/Max     Min/Max     Elapsed");
         
-        printf("\n  Filename              size           size    Ratio    ");
-        printf("   mode         size");
+        printf("\n  Filename          size (B)       size (B)    Ratio    ");
+        printf("   mode     size (B)");
         
         if (show_stats)
-            printf("     count     lookups       offset      length        time");
+            printf("     count     lookups       offset      length    time (s)");
         
         printf("\n------------------------------------------------------------------------------");
 
@@ -432,7 +432,7 @@ int read_lfg_archive(int file_max,
         
         if (verbose != VERBOSE_LEVEL_SILENT)
         {
-            printf("  %-12s ",  file_info.filename);
+            printf("  %-13s",  file_info.filename);
         }
 
         disk_info.file_count++;
@@ -520,16 +520,24 @@ int read_lfg_archive(int file_max,
         
         if (verbose != VERBOSE_LEVEL_SILENT)
         {
-            printf("   %10d ",  file_info.length+8);
-            printf("    %10d ", file_info.final_length);
-            printf("%8.2f\%%", 100-(float)((file_info.length+8) * 100) / file_info.final_length);
+            printf("   %10d",  file_info.length+8);
+            printf("     %10d", file_info.final_length);
+            printf(" %8.2f\%%", 100-(float)((file_info.length+8) * 100) / file_info.final_length);
             
-            printf("        %d          %dK", explode_stats.literal_mode,
-                       1 << (explode_stats.dictionary_size - 4));
+            if (explode_stats.literal_mode==1) //IMPLODE_ASCII)
+            {
+                printf("     ASCII");
+            }
+            else
+            {
+                printf("    BINARY");
+            }
+            
+            printf("         %4d", 1<<(explode_stats.dictionary_size+6));
 
             if (show_stats )
             {
-                printf("  %10d  %10d",
+                printf("%10d  %10d",
                        explode_stats.literal_count, explode_stats.dictionary_count);
                 
                 if (explode_stats.dictionary_count!=0)
@@ -571,7 +579,7 @@ int read_lfg_archive(int file_max,
         printf("------------------------------------------------------------------------------" );
         if (show_stats)
             printf("---------------------------------------------------------------");
-        printf("\n  %d files        %10ld bytes%9d bytes\n",
+        printf("\n %3d files        %10ld bytes%9d bytes\n",
                disk_info.file_count, archive_info.total_length,
                disk_info.bytes_written_so_far );
         printf ("\n");
