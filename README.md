@@ -1,4 +1,4 @@
-# LFGExtract
+# LFGExtract (obsolete - see LFGUtils)
 Utility to extract or create old (1990's) LucasFilm Game (LFG) archives.
 
 LFGDump - Extract from archive.
